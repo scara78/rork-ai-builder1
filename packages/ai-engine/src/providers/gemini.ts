@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, type GenerateContentStreamResult } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { 
   AIProvider, 
   GenerateParams, 
@@ -9,9 +9,12 @@ import type {
 import { parseGeneratedFiles } from '../parser';
 import { FULL_SYSTEM_PROMPT } from '../prompts';
 
+// Gemini 3 Pro - Latest and most intelligent model
+const GEMINI_MODEL = 'gemini-3-pro-preview';
+
 export class GeminiProvider implements AIProvider {
   name = 'gemini';
-  displayName = 'Gemini';
+  displayName = 'Gemini 3 Pro';
   
   private client: GoogleGenerativeAI;
   
@@ -25,17 +28,18 @@ export class GeminiProvider implements AIProvider {
       systemPrompt,
       currentFiles,
       conversationHistory = [],
-      maxTokens = 8192,
+      maxTokens = 16384,
     } = params;
     
     // Build the full system prompt with Expo SDK 54+ knowledge
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
     
     const model = this.client.getGenerativeModel({
-      model: 'gemini-1.5-pro',
+      model: GEMINI_MODEL,
       systemInstruction: fullSystemPrompt,
       generationConfig: {
         maxOutputTokens: maxTokens,
+        temperature: 1.0, // Gemini 3 recommends keeping at 1.0
       },
     });
     
@@ -60,9 +64,10 @@ export class GeminiProvider implements AIProvider {
     // Parse generated files
     const files = parseGeneratedFiles(text);
     
-    // Gemini doesn't provide exact token counts, estimate
-    const inputTokens = Math.ceil(userContent.length / 4);
-    const outputTokens = Math.ceil(text.length / 4);
+    // Get usage metadata if available
+    const usageMetadata = response.usageMetadata;
+    const inputTokens = usageMetadata?.promptTokenCount || Math.ceil(userContent.length / 4);
+    const outputTokens = usageMetadata?.candidatesTokenCount || Math.ceil(text.length / 4);
     
     return {
       text,
@@ -80,17 +85,18 @@ export class GeminiProvider implements AIProvider {
       systemPrompt,
       currentFiles,
       conversationHistory = [],
-      maxTokens = 8192,
+      maxTokens = 16384,
     } = params;
     
     // Build the full system prompt with Expo SDK 54+ knowledge
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
     
     const model = this.client.getGenerativeModel({
-      model: 'gemini-1.5-pro',
+      model: GEMINI_MODEL,
       systemInstruction: fullSystemPrompt,
       generationConfig: {
         maxOutputTokens: maxTokens,
+        temperature: 1.0, // Gemini 3 recommends keeping at 1.0
       },
     });
     
@@ -125,8 +131,11 @@ export class GeminiProvider implements AIProvider {
         yield { type: 'file', file };
       }
       
-      const inputTokens = Math.ceil(userContent.length / 4);
-      const outputTokens = Math.ceil(fullText.length / 4);
+      // Get final response for usage
+      const finalResponse = await result.response;
+      const usageMetadata = finalResponse.usageMetadata;
+      const inputTokens = usageMetadata?.promptTokenCount || Math.ceil(userContent.length / 4);
+      const outputTokens = usageMetadata?.candidatesTokenCount || Math.ceil(fullText.length / 4);
       
       yield { 
         type: 'done', 
