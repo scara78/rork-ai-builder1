@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Mic, ChevronDown, Sparkles, Image as ImageIcon, X, Zap, Bot } from 'lucide-react';
+import { Send, Loader2, Mic, ChevronDown, ChevronRight, Sparkles, Image as ImageIcon, X, Zap, Bot, FileCode } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
 import { AgentStatus } from './AgentStatus';
@@ -22,7 +22,8 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [agentMode, setAgentMode] = useState(false); // New: Agent mode toggle
+  const [agentMode, setAgentMode] = useState(false); // Agent mode toggle
+  const [showEditedFiles, setShowEditedFiles] = useState(true); // Edited files section
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -416,6 +417,50 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
       {(isAgentRunning || agentPhase !== 'idle') && (
         <div className="p-2 border-b border-[#27272a]">
           <AgentStatus />
+        </div>
+      )}
+      
+      {/* Edited Files Section - Collapsible */}
+      {Object.keys(files).length > 0 && (
+        <div className="border-b border-[#27272a]">
+          <button
+            onClick={() => setShowEditedFiles(!showEditedFiles)}
+            className="w-full flex items-center justify-between px-4 py-2 text-gray-300 hover:bg-[#18181b] transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <FileCode size={14} className="text-gray-500" />
+              <span className="text-sm font-medium">Edited files</span>
+              <span className="text-xs text-gray-500 bg-[#27272a] px-1.5 py-0.5 rounded">
+                {Object.keys(files).length}
+              </span>
+            </div>
+            {showEditedFiles ? (
+              <ChevronDown size={14} className="text-gray-500" />
+            ) : (
+              <ChevronRight size={14} className="text-gray-500" />
+            )}
+          </button>
+          
+          {showEditedFiles && (
+            <div className="px-4 pb-3 space-y-1 max-h-[200px] overflow-y-auto custom-scrollbar">
+              {Object.values(files).map((file) => (
+                <div 
+                  key={file.path}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#18181b] cursor-pointer text-xs group"
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${file.isDirty ? 'bg-yellow-500' : 'bg-blue-500'}`} />
+                  <span className="text-gray-400 truncate flex-1">
+                    {file.path.startsWith('/') ? file.path.slice(1) : file.path}
+                  </span>
+                  {file.isDirty && (
+                    <span className="text-[10px] text-yellow-500 opacity-0 group-hover:opacity-100">
+                      modified
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       

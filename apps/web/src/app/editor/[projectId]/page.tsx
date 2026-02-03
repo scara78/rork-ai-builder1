@@ -7,10 +7,13 @@ import { FileTree } from '@/components/editor/FileTree';
 import { CodePanel } from '@/components/editor/CodePanel';
 import { ChatPanel } from '@/components/editor/ChatPanel';
 import { PreviewPanel } from '@/components/editor/PreviewPanel';
+import { QRPanel } from '@/components/editor/QRPanel';
 import { Toolbar } from '@/components/editor/Toolbar';
 import { CommandPalette } from '@/components/editor/CommandPalette';
 import { useProjectStore, type EditorFile } from '@/stores/projectStore';
 import { useToast } from '@/components/ui/Toast';
+
+type ViewMode = 'preview' | 'code';
 
 export default function EditorPage() {
   const params = useParams();
@@ -20,6 +23,9 @@ export default function EditorPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('preview');
+  const [expoURL, setExpoURL] = useState<string | undefined>(undefined);
+  const [connectedDevices, setConnectedDevices] = useState(0);
   
   const { setProject, files } = useProjectStore();
   const { showToast } = useToast();
@@ -138,6 +144,16 @@ export default function EditorPage() {
     
     loadProject();
   }, [projectId, router, setProject]);
+
+  // Callback to receive Expo URL from PreviewPanel
+  const handleExpoURLChange = useCallback((url: string | undefined) => {
+    setExpoURL(url);
+  }, []);
+
+  // Callback to receive connected devices count
+  const handleDevicesChange = useCallback((count: number) => {
+    setConnectedDevices(count);
+  }, []);
   
   if (loading) {
     return (
@@ -168,32 +184,51 @@ export default function EditorPage() {
   
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* Toolbar */}
-      <Toolbar projectId={projectId} onSave={handleSave} onExport={handleExport} />
+      {/* Toolbar with view toggle */}
+      <Toolbar 
+        projectId={projectId} 
+        onSave={handleSave} 
+        onExport={handleExport}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
       
-      {/* Main Content */}
+      {/* Main Content - Rork-style layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Side - Chat Panel */}
-        <div className="w-[320px] border-r border-border flex-shrink-0">
+        {/* Left Side - Chat Panel (fixed width ~35%) */}
+        <div className="w-[380px] border-r border-border flex-shrink-0">
           <ChatPanel projectId={projectId} />
         </div>
         
-        {/* Center - File Tree + Code Editor */}
-        <div className="flex-1 flex min-w-0">
-          {/* File Tree */}
-          <div className="w-56 border-r border-border flex-shrink-0">
-            <FileTree />
-          </div>
-          
-          {/* Code Editor */}
-          <div className="flex-1 min-w-0 border-r border-border">
-            <CodePanel projectId={projectId} />
-          </div>
+        {/* Center - Preview OR Code (toggle) */}
+        <div className="flex-1 min-w-0">
+          {viewMode === 'preview' ? (
+            /* Preview Mode - Big phone frame centered */
+            <PreviewPanel 
+              projectId={projectId}
+              onExpoURLChange={handleExpoURLChange}
+              onDevicesChange={handleDevicesChange}
+            />
+          ) : (
+            /* Code Mode - FileTree + Code Editor */
+            <div className="h-full flex">
+              <div className="w-56 border-r border-border flex-shrink-0">
+                <FileTree />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CodePanel projectId={projectId} />
+              </div>
+            </div>
+          )}
         </div>
         
-        {/* Right Side - Preview */}
-        <div className="w-[420px] flex-shrink-0">
-          <PreviewPanel projectId={projectId} />
+        {/* Right Side - QR Panel (always visible, fixed width ~280px) */}
+        <div className="w-[280px] flex-shrink-0">
+          <QRPanel 
+            expoURL={expoURL}
+            connectedDevices={connectedDevices}
+            onShowCode={() => setViewMode('code')}
+          />
         </div>
       </div>
       

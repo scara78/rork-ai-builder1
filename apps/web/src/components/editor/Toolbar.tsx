@@ -4,10 +4,8 @@ import { useState } from 'react';
 import { 
   Code, 
   Eye, 
-  BarChart2, 
   ChevronRight, 
   Download, 
-  GitBranch, 
   Share2, 
   Box,
   Lock,
@@ -26,13 +24,17 @@ import Link from 'next/link';
 import { useProjectStore } from '@/stores/projectStore';
 import { useToast } from '@/components/ui/Toast';
 
+type ViewMode = 'preview' | 'code';
+
 interface ToolbarProps {
   projectId: string;
   onSave?: () => void;
   onExport?: () => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 }
 
-export function Toolbar({ projectId, onSave, onExport }: ToolbarProps) {
+export function Toolbar({ projectId, onSave, onExport, viewMode = 'preview', onViewModeChange }: ToolbarProps) {
   const { projectName, files } = useProjectStore();
   const { showToast } = useToast();
   
@@ -76,7 +78,6 @@ export function Toolbar({ projectId, onSave, onExport }: ToolbarProps) {
     setGitHubResult(null);
     
     try {
-      // Convert files to the format expected by API
       const filesMap: Record<string, string> = {};
       Object.values(files).forEach(file => {
         filesMap[file.path] = file.content;
@@ -167,16 +168,29 @@ export function Toolbar({ projectId, onSave, onExport }: ToolbarProps) {
           
           <div className="h-4 w-[1px] bg-[#27272a]" />
           
-          {/* View Toggle */}
-          <div className="flex items-center bg-[#18181b] rounded-md border border-[#27272a] p-0.5">
-            <button className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-[#27272a] rounded">
+          {/* View Toggle - Code / Preview */}
+          <div className="flex items-center bg-[#18181b] rounded-lg border border-[#27272a] p-0.5">
+            <button 
+              onClick={() => onViewModeChange?.('code')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+                viewMode === 'code' 
+                  ? 'bg-[#27272a] text-white shadow-sm' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
               <Code size={12} />
+              Code
             </button>
-            <button className="flex items-center gap-2 bg-[#27272a] text-gray-200 px-2 py-1 rounded text-[12px] font-medium shadow-sm">
-              <Eye size={12} /> Preview
-            </button>
-            <button className="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-[#27272a] rounded">
-              <BarChart2 size={12} />
+            <button 
+              onClick={() => onViewModeChange?.('preview')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+                viewMode === 'preview' 
+                  ? 'bg-[#27272a] text-white shadow-sm' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Eye size={12} />
+              Preview
             </button>
           </div>
         </div>
