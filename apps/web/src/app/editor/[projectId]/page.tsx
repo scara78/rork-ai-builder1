@@ -173,27 +173,27 @@ export default function EditorPage() {
       
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - File Tree */}
-        <div className="w-56 border-r border-border flex-shrink-0">
-          <FileTree />
+        {/* Left Side - Chat Panel */}
+        <div className="w-[320px] border-r border-border flex-shrink-0">
+          <ChatPanel projectId={projectId} />
         </div>
         
-        {/* Center - Code Editor */}
-        <div className="flex-1 min-w-0 border-r border-border">
-          <CodePanel projectId={projectId} />
-        </div>
-        
-        {/* Right Side - Preview & Chat */}
-        <div className="w-[500px] flex flex-col flex-shrink-0">
-          {/* Preview */}
-          <div className="flex-1 border-b border-border min-h-0">
-            <PreviewPanel projectId={projectId} />
+        {/* Center - File Tree + Code Editor */}
+        <div className="flex-1 flex min-w-0">
+          {/* File Tree */}
+          <div className="w-56 border-r border-border flex-shrink-0">
+            <FileTree />
           </div>
           
-          {/* Chat */}
-          <div className="h-[300px] flex-shrink-0">
-            <ChatPanel projectId={projectId} />
+          {/* Code Editor */}
+          <div className="flex-1 min-w-0 border-r border-border">
+            <CodePanel projectId={projectId} />
           </div>
+        </div>
+        
+        {/* Right Side - Preview */}
+        <div className="w-[420px] flex-shrink-0">
+          <PreviewPanel projectId={projectId} />
         </div>
       </div>
       
