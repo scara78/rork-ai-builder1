@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         // Get API key
         const apiKey = model === 'claude' 
           ? process.env.ANTHROPIC_API_KEY 
-          : process.env.GOOGLE_AI_API_KEY;
+          : process.env.GEMINI_API_KEY;
         
         if (!apiKey || apiKey.startsWith('your-')) {
           // Return mock response if no API key
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
             `data: ${JSON.stringify({ type: 'text', content: 'API key not configured. ' })}\n\n`
           ));
           controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'text', content: 'Please add your ANTHROPIC_API_KEY or GOOGLE_AI_API_KEY to .env.local\n\n' })}\n\n`
+            `data: ${JSON.stringify({ type: 'text', content: 'Please add your ANTHROPIC_API_KEY or GEMINI_API_KEY to .env.local\n\n' })}\n\n`
           ));
           controller.enqueue(encoder.encode(
             `data: ${JSON.stringify({ type: 'text', content: 'Here\'s a sample response showing what would happen:\n\n' })}\n\n`
