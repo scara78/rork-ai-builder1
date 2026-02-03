@@ -1,272 +1,349 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import {
-  SandpackProvider,
-  SandpackLayout,
-  SandpackPreview as SandpackPreviewComponent,
-  SandpackThemeProvider,
-} from '@codesandbox/sandpack-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectStore } from '@/stores/projectStore';
-
-// Dark theme matching our editor
-const darkTheme = {
-  colors: {
-    surface1: '#0a0a0a',
-    surface2: '#18181b',
-    surface3: '#27272a',
-    clickable: '#999999',
-    base: '#808080',
-    disabled: '#4D4D4D',
-    hover: '#C5C5C5',
-    accent: '#22c55e',
-    error: '#ef4444',
-    errorSurface: '#451a1a',
-  },
-  syntax: {
-    plain: '#FFFFFF',
-    comment: { color: '#757575', fontStyle: 'italic' as const },
-    keyword: '#c792ea',
-    tag: '#f07178',
-    punctuation: '#89DDFF',
-    definition: '#82AAFF',
-    property: '#FFCB6B',
-    static: '#f78c6c',
-    string: '#C3E88D',
-  },
-  font: {
-    body: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    mono: '"Fira Code", "Fira Mono", Menlo, Consolas, monospace',
-    size: '13px',
-    lineHeight: '20px',
-  },
-};
-
-// Transform our file structure to Sandpack format
-function transformFilesToSandpack(files: Record<string, { path: string; content: string }>) {
-  const sandpackFiles: Record<string, { code: string }> = {};
-  
-  Object.values(files).forEach((file) => {
-    // Sandpack expects paths starting with /
-    const path = file.path.startsWith('/') ? file.path : `/${file.path}`;
-    sandpackFiles[path] = { code: file.content };
-  });
-  
-  return sandpackFiles;
-}
-
-// Base template files for React Native Web compatibility
-const baseTemplateFiles: Record<string, { code: string }> = {
-  '/package.json': {
-    code: JSON.stringify({
-      name: 'rork-app',
-      version: '1.0.0',
-      main: 'index.js',
-      dependencies: {
-        'react': '^18.2.0',
-        'react-dom': '^18.2.0',
-        'react-native-web': '^0.19.12',
-        'expo': '^52.0.0',
-        'expo-router': '^4.0.0',
-      },
-    }, null, 2),
-  },
-  '/index.js': {
-    code: `import { AppRegistry } from 'react-native';
-import App from './App';
-
-AppRegistry.registerComponent('main', () => App);
-
-if (typeof document !== 'undefined') {
-  const rootTag = document.getElementById('root');
-  AppRegistry.runApplication('main', { rootTag });
-}`,
-  },
-  '/App.js': {
-    code: `import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-
-export default function App() {
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome to Rork</Text>
-        <Text style={styles.subtitle}>Your app will appear here</Text>
-      </View>
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  content: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100%',
-  },
-  header: {
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#888',
-  },
-});`,
-  },
-};
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface SandpackPreviewProps {
   className?: string;
   showNavigator?: boolean;
 }
 
-export function SandpackPreview({ className = '', showNavigator = false }: SandpackPreviewProps) {
-  const { files } = useProjectStore();
-  
-  // Transform project files to Sandpack format
-  const sandpackFiles = useMemo(() => {
-    const projectFiles = transformFilesToSandpack(files);
-    
-    // Merge with base template, project files take precedence
-    return {
-      ...baseTemplateFiles,
-      ...projectFiles,
-    };
-  }, [files]);
-  
-  // Create App.js from app/index.tsx if it exists
-  const finalFiles = useMemo(() => {
-    const result: Record<string, { code: string }> = { ...sandpackFiles };
-    
-    // If we have app/index.tsx or app/(tabs)/index.tsx, use it as App.js
-    const indexFile = result['/app/index.tsx'] || result['/app/(tabs)/index.tsx'];
-    if (indexFile) {
-      // Transform the Expo Router component to work standalone
-      result['/App.js'] = {
-        code: transformExpoRouterToStandalone(indexFile.code),
-      };
+// Generate HTML that runs React Native Web in an iframe
+function generatePreviewHTML(appCode: string): string {
+  // Escape backticks and backslashes for template literal
+  const escapedCode = appCode
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>App Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { 
+      width: 100%; 
+      height: 100%; 
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
     }
-    
-    return result;
-  }, [sandpackFiles]);
+    /* React Native Web resets */
+    #root > div { display: flex; flex: 1; min-height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
   
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- React Native Web -->
+  <script crossorigin src="https://unpkg.com/react-native-web@0.19.12/dist/react-native-web.umd.min.js"></script>
+  
+  <!-- Babel Standalone for JSX -->
+  <script crossorigin src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  
+  <script type="text/babel" data-presets="react">
+    const { 
+      View, 
+      Text, 
+      StyleSheet, 
+      ScrollView, 
+      TouchableOpacity,
+      TextInput,
+      Image,
+      SafeAreaView,
+      FlatList,
+      ActivityIndicator,
+      Pressable,
+      Platform,
+      Dimensions,
+      StatusBar,
+    } = window.ReactNativeWeb;
+    
+    const React = window.React;
+    const { useState, useEffect, useCallback, useMemo, useRef } = React;
+    
+    // Mock expo-linear-gradient
+    const LinearGradient = ({ colors, style, children, ...props }) => {
+      const gradientStyle = colors && colors.length >= 2 
+        ? { background: \`linear-gradient(180deg, \${colors.join(', ')})\` }
+        : {};
+      return React.createElement(View, { style: [style, gradientStyle], ...props }, children);
+    };
+    
+    // Mock expo-blur
+    const BlurView = ({ intensity = 50, tint = 'dark', style, children, ...props }) => {
+      const blurStyle = {
+        backdropFilter: \`blur(\${intensity / 10}px)\`,
+        WebkitBackdropFilter: \`blur(\${intensity / 10}px)\`,
+        backgroundColor: tint === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)',
+      };
+      return React.createElement(View, { style: [style, blurStyle], ...props }, children);
+    };
+    
+    // Mock expo-haptics
+    const Haptics = {
+      impactAsync: () => Promise.resolve(),
+      notificationAsync: () => Promise.resolve(),
+      selectionAsync: () => Promise.resolve(),
+    };
+    
+    // Mock expo-router Link
+    const Link = ({ href, children, style, asChild, ...props }) => {
+      if (asChild && React.Children.count(children) === 1) {
+        return React.cloneElement(children, { onPress: () => console.log('Navigate to:', href) });
+      }
+      return React.createElement(TouchableOpacity, { 
+        onPress: () => console.log('Navigate to:', href),
+        style,
+        ...props 
+      }, children);
+    };
+    
+    // Mock useRouter
+    const useRouter = () => ({
+      push: (path) => console.log('router.push:', path),
+      replace: (path) => console.log('router.replace:', path),
+      back: () => console.log('router.back'),
+    });
+    
+    // Mock Ionicons
+    const Ionicons = ({ name, size = 24, color = '#fff' }) => {
+      const iconMap = {
+        'home': '🏠',
+        'home-outline': '🏠',
+        'search': '🔍',
+        'search-outline': '🔍',
+        'person': '👤',
+        'person-outline': '👤',
+        'settings': '⚙️',
+        'settings-outline': '⚙️',
+        'add': '+',
+        'add-circle': '⊕',
+        'add-circle-outline': '⊕',
+        'close': '✕',
+        'close-circle': '⊗',
+        'chevron-back': '‹',
+        'chevron-forward': '›',
+        'chevron-down': '⌄',
+        'chevron-up': '⌃',
+        'checkmark': '✓',
+        'checkmark-circle': '✓',
+        'heart': '❤️',
+        'heart-outline': '♡',
+        'star': '★',
+        'star-outline': '☆',
+        'trash': '🗑',
+        'trash-outline': '🗑',
+        'create': '✏️',
+        'create-outline': '✏️',
+        'menu': '☰',
+        'menu-outline': '☰',
+        'notifications': '🔔',
+        'notifications-outline': '🔔',
+        'mail': '✉️',
+        'mail-outline': '✉️',
+        'calendar': '📅',
+        'calendar-outline': '📅',
+        'time': '🕐',
+        'time-outline': '🕐',
+        'location': '📍',
+        'location-outline': '📍',
+        'camera': '📷',
+        'camera-outline': '📷',
+        'image': '🖼',
+        'image-outline': '🖼',
+        'play': '▶',
+        'pause': '⏸',
+        'stop': '⏹',
+      };
+      return React.createElement(Text, { 
+        style: { fontSize: size, color, textAlign: 'center', width: size, height: size, lineHeight: size } 
+      }, iconMap[name] || '●');
+    };
+    
+    // Mock @expo/vector-icons
+    const FontAwesome = Ionicons;
+    const MaterialIcons = Ionicons;
+    const Feather = Ionicons;
+    
+    // User's App Code
+    ${escapedCode}
+  </script>
+  
+  <script>
+    window.onerror = function(msg, url, line, col, error) {
+      document.getElementById('root').innerHTML = '<div style="padding: 20px; color: #ef4444; font-family: monospace; font-size: 12px;"><strong>Error:</strong><br>' + msg + '<br><br>Line: ' + line + '</div>';
+      return true;
+    };
+  </script>
+</body>
+</html>`;
+}
+
+// Transform project files to a simple React component
+function transformToPreviewCode(files: Record<string, { path: string; content: string }>): string {
+  // Find the main entry file
+  const fileList = Object.values(files);
+  
+  // Priority: app/index.tsx > app/(tabs)/index.tsx > App.tsx > App.js
+  const mainFile = 
+    fileList.find(f => f.path === 'app/index.tsx' || f.path === '/app/index.tsx') ||
+    fileList.find(f => f.path === 'app/(tabs)/index.tsx' || f.path === '/app/(tabs)/index.tsx') ||
+    fileList.find(f => f.path.toLowerCase().includes('app.tsx')) ||
+    fileList.find(f => f.path.toLowerCase().includes('app.js'));
+  
+  if (!mainFile) {
+    // Return default welcome screen
+    return `
+function App() {
   return (
-    <div className={`h-full w-full ${className}`}>
-      <SandpackProvider
-        template="react"
-        theme={darkTheme}
-        files={finalFiles}
-        options={{
-          bundlerURL: 'https://sandpack-bundler.codesandbox.io',
-          externalResources: [
-            'https://unpkg.com/react-native-web@0.19.12/dist/react-native-web.umd.min.js',
-          ],
-          classes: {
-            'sp-wrapper': 'h-full',
-            'sp-layout': 'h-full',
-          },
-          recompileMode: 'delayed',
-          recompileDelay: 1000,
-        }}
-        customSetup={{
-          dependencies: {
-            'react-native-web': '^0.19.12',
-            'react': '^18.2.0',
-            'react-dom': '^18.2.0',
-          },
-        }}
-      >
-        <SandpackPreviewComponent
-          showNavigator={showNavigator}
-          showRefreshButton={true}
-          showOpenInCodeSandbox={false}
-          style={{ height: '100%' }}
-        />
-      </SandpackProvider>
-    </div>
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 }}>Welcome to Rork</Text>
+      <Text style={{ fontSize: 16, color: '#888', textAlign: 'center' }}>Your app will appear here when you start building</Text>
+    </View>
   );
 }
 
-// Transform Expo Router component to standalone React Native Web
-function transformExpoRouterToStandalone(code: string): string {
-  // Remove Expo Router specific imports
-  let transformed = code
-    .replace(/import\s*{[^}]*}\s*from\s*['"]expo-router['"]/g, '')
-    .replace(/import\s*{[^}]*}\s*from\s*['"]expo-router\/[^'"]*['"]/g, '')
-    .replace(/import\s*\*\s*as\s*\w+\s*from\s*['"]expo-router['"]/g, '');
-  
-  // Replace expo-symbols with placeholder
-  transformed = transformed.replace(
-    /import\s*{[^}]*SymbolView[^}]*}\s*from\s*['"]expo-symbols['"]/g,
-    `const SymbolView = ({ name, size = 24, tintColor = '#fff' }) => {
-      const React = require('react');
-      const { Text } = require('react-native');
-      return React.createElement(Text, { style: { fontSize: size, color: tintColor } }, '●');
-    };`
-  );
-  
-  // Replace expo-image with react-native Image
-  transformed = transformed.replace(
-    /import\s*{[^}]*Image[^}]*}\s*from\s*['"]expo-image['"]/g,
-    `import { Image } from 'react-native';`
-  );
-  
-  // Replace glass effect with View
-  transformed = transformed.replace(
-    /import\s*{[^}]*GlassView[^}]*}\s*from\s*['"]expo-glass-effect['"]/g,
-    `const GlassView = ({ children, style, ...props }) => {
-      const React = require('react');
-      const { View } = require('react-native');
-      return React.createElement(View, { style: [{ backgroundColor: 'rgba(255,255,255,0.1)' }, style], ...props }, children);
-    };`
-  );
-  
-  // Replace blur with View
-  transformed = transformed.replace(
-    /import\s*{[^}]*BlurView[^}]*}\s*from\s*['"]expo-blur['"]/g,
-    `const BlurView = ({ children, style, ...props }) => {
-      const React = require('react');
-      const { View } = require('react-native');
-      return React.createElement(View, { style: [{ backgroundColor: 'rgba(0,0,0,0.5)' }, style], ...props }, children);
-    };`
-  );
-  
-  // Replace PlatformColor with string fallback
-  transformed = transformed.replace(/PlatformColor\(['"]([^'"]+)['"]\)/g, (_, colorName) => {
-    const colorMap: Record<string, string> = {
-      'label': '#fff',
-      'secondaryLabel': '#8e8e93',
-      'tertiaryLabel': '#5e5e5e',
-      'systemBackground': '#000',
-      'secondarySystemBackground': '#1c1c1e',
-      'tertiarySystemBackground': '#2c2c2e',
-      'systemBlue': '#007aff',
-      'systemGreen': '#34c759',
-      'systemRed': '#ff3b30',
-      'systemYellow': '#ffcc00',
-    };
-    return `'${colorMap[colorName] || '#fff'}'`;
-  });
-  
-  // Replace process.env.EXPO_OS with 'web'
-  transformed = transformed.replace(/process\.env\.EXPO_OS/g, "'web'");
-  
-  // Ensure we have a default export
-  if (!transformed.includes('export default')) {
-    transformed += '\nexport default function App() { return null; }';
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+`;
   }
   
-  return transformed;
+  let code = mainFile.content;
+  
+  // Remove TypeScript types
+  code = code
+    .replace(/:\s*React\.FC\b/g, '')
+    .replace(/:\s*\w+\[\]/g, '')
+    .replace(/:\s*\w+\s*\|/g, '')
+    .replace(/<\w+>/g, '') // Remove generic types
+    .replace(/:\s*(string|number|boolean|any|void|null|undefined)\b/g, '')
+    .replace(/interface\s+\w+\s*\{[^}]*\}/g, '')
+    .replace(/type\s+\w+\s*=\s*[^;]+;/g, '')
+    .replace(/as\s+\w+/g, '');
+  
+  // Remove all import statements (we provide globals)
+  code = code.replace(/^import\s+.*$/gm, '');
+  
+  // Remove export statements but keep the content
+  code = code.replace(/export\s+default\s+/g, '');
+  code = code.replace(/export\s+/g, '');
+  
+  // Find the main component name
+  const componentMatch = code.match(/(?:function|const)\s+(\w+)/);
+  const componentName = componentMatch ? componentMatch[1] : 'App';
+  
+  // Add render call
+  code += `
+
+// Render the app
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(${componentName}));
+`;
+  
+  return code;
+}
+
+export function SandpackPreview({ className = '', showNavigator = false }: SandpackPreviewProps) {
+  const { files } = useProjectStore();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [key, setKey] = useState(0);
+  
+  // Generate preview HTML
+  const previewHTML = useMemo(() => {
+    try {
+      const appCode = transformToPreviewCode(files);
+      return generatePreviewHTML(appCode);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate preview');
+      return null;
+    }
+  }, [files]);
+  
+  // Create blob URL for iframe
+  const blobUrl = useMemo(() => {
+    if (!previewHTML) return null;
+    const blob = new Blob([previewHTML], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  }, [previewHTML]);
+  
+  // Cleanup blob URL
+  useEffect(() => {
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [blobUrl]);
+  
+  const handleLoad = () => {
+    setIsLoading(false);
+    setError(null);
+  };
+  
+  const handleError = () => {
+    setIsLoading(false);
+    setError('Failed to load preview');
+  };
+  
+  const handleRefresh = () => {
+    setIsLoading(true);
+    setKey(k => k + 1);
+  };
+  
+  if (error) {
+    return (
+      <div className={`h-full w-full flex items-center justify-center bg-[#0a0a0a] ${className}`}>
+        <div className="text-center p-4">
+          <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-red-400 text-sm mb-2">Preview Error</p>
+          <p className="text-gray-500 text-xs">{error}</p>
+          <button 
+            onClick={handleRefresh}
+            className="mt-4 px-3 py-1.5 bg-white/10 text-white rounded text-xs hover:bg-white/20"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`h-full w-full relative ${className}`}>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a] z-10">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-3" />
+            <p className="text-gray-500 text-sm">Loading preview...</p>
+          </div>
+        </div>
+      )}
+      
+      {blobUrl && (
+        <iframe
+          key={key}
+          ref={iframeRef}
+          src={blobUrl}
+          className="w-full h-full border-0 bg-[#0a0a0a]"
+          title="App Preview"
+          sandbox="allow-scripts allow-same-origin"
+          onLoad={handleLoad}
+          onError={handleError}
+        />
+      )}
+    </div>
+  );
 }
 
 export default SandpackPreview;
