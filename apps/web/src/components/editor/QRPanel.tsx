@@ -60,37 +60,14 @@ export function QRPanel({ expoURL, connectedDevices = 0, onShowCode }: QRPanelPr
                 />
               </div>
               
-              {/* Instructions */}
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <span className="bg-[#27272a] text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium">
-                    1
-                  </span>
-                  <div>
-                    <p className="text-sm text-gray-200">Open Camera app</p>
-                    <p className="text-xs text-gray-500">On your iPhone or Android device</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <span className="bg-[#27272a] text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium">
-                    2
-                  </span>
-                  <div>
-                    <p className="text-sm text-gray-200">Scan QR code</p>
-                    <p className="text-xs text-gray-500">Point camera at the code above</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <span className="bg-[#27272a] text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium">
-                    3
-                  </span>
-                  <div>
-                    <p className="text-sm text-gray-200">Open in Expo Go</p>
-                    <p className="text-xs text-gray-500">Tap the notification to launch</p>
-                  </div>
-                </div>
+              {/* Instructions - Rork style compact */}
+              <div>
+                <p className="text-sm font-semibold text-white mb-2">Scan QR code to test</p>
+                <p className="text-xs text-gray-500 mb-1.5">To test on your device:</p>
+                <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
+                  <li>Open Camera app</li>
+                  <li>Scan the QR code above</li>
+                </ol>
               </div>
               
               {/* Warning */}

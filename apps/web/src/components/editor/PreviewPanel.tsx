@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Loader2, RefreshCw, AlertCircle, FileCode2, Check } from 'lucide-react';
+import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { Snack, SnackFiles, SnackDependencies } from 'snack-sdk';
 import { useProjectStore } from '@/stores/projectStore';
 
@@ -251,7 +251,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 
   if (error) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#111]">
+      <div className="h-full w-full flex items-center justify-center bg-[#1a1a1e]">
         <div className="text-center p-4">
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
           <p className="text-red-400 text-sm mb-2">Preview Error</p>
@@ -268,43 +268,60 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   }
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#111]">
-      {/* Controls - floating badge */}
+    <div className="h-full w-full flex flex-col bg-[#1a1a1e]">
+      {/* Controls - floating badge with device icons */}
       <div className="absolute top-4 right-4 z-20">
-        <div className="flex items-center bg-[#0a0a0a]/90 backdrop-blur-sm border border-[#27272a] rounded-full shadow-lg px-2 py-1 gap-1.5">
-          {isGenerating ? (
-            <>
-              <Loader2 size={10} className="animate-spin text-blue-400" />
-              <span className="text-blue-400 font-medium text-[11px]">Building</span>
-            </>
-          ) : isLoading ? (
-            <>
-              <Loader2 size={10} className="animate-spin text-yellow-400" />
-              <span className="text-yellow-400 font-medium text-[11px]">Loading</span>
-            </>
-          ) : (
-            <>
-              <div className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-              </div>
-              <span className="text-green-400 font-medium text-[11px]">Live</span>
-            </>
-          )}
-          <div className="w-px h-3 bg-[#27272a]" />
+        <div className="flex items-center bg-[#0a0a0a]/90 backdrop-blur-sm border border-[#27272a] rounded-full shadow-lg px-2.5 py-1.5 gap-2">
+          {/* Refresh */}
           <button
             onClick={handleRefresh}
             className="p-0.5 text-gray-400 hover:text-white transition-colors"
             title="Refresh preview"
           >
-            <RefreshCw size={12} />
+            <RefreshCw size={13} />
           </button>
+          
+          {/* Status badge */}
+          {isGenerating ? (
+            <div className="flex items-center gap-1.5">
+              <Loader2 size={10} className="animate-spin text-blue-400" />
+              <span className="text-blue-400 font-semibold text-[11px]">Building</span>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center gap-1.5">
+              <Loader2 size={10} className="animate-spin text-yellow-400" />
+              <span className="text-yellow-400 font-semibold text-[11px]">Loading</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </div>
+              <span className="text-green-400 font-semibold text-[11px]">Live</span>
+            </div>
+          )}
+          
+          <div className="w-px h-3.5 bg-[#3f3f46]" />
+          
+          {/* Device type icons */}
+          <div className="flex items-center gap-1">
+            <button className="p-0.5 text-white" title="Phone">
+              <Smartphone size={13} />
+            </button>
+            <button className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors" title="Tablet">
+              <Tablet size={13} />
+            </button>
+            <button className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors" title="Desktop">
+              <Monitor size={13} />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Preview Area */}
       <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:24px_24px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:24px_24px]" />
 
         {/* Phone Frame */}
         <div className="relative w-[375px] h-[812px] bg-black rounded-[50px] border-[6px] border-[#1a1a1a] shadow-[0_0_120px_-20px_rgba(0,0,0,0.8),0_25px_60px_-12px_rgba(0,0,0,0.5)] overflow-hidden ring-1 ring-white/5 z-10 scale-[0.72] origin-center">

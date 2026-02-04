@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, ChevronDown, ChevronRight, Sparkles, Image as ImageIcon, X, Bot, FileCode, RotateCcw, Code, Share2 } from 'lucide-react';
+import { Send, Loader2, ChevronDown, ChevronRight, Sparkles, Image as ImageIcon, X, Bot, FileCode, RotateCcw, Code, Share2, AlertCircle, Mic } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
@@ -37,6 +37,7 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
   const [agentMode, setAgentMode] = useState(false); // Agent mode toggle
   const [showModelMenu, setShowModelMenu] = useState(false); // Model dropdown
   const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({}); // Per-message file list collapse
+  const [showErrorDetails, setShowErrorDetails] = useState(false); // Error details expand
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -56,6 +57,8 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
     streamingContent,
     appendStreamingContent,
     setStreamingContent,
+    runtimeErrors,
+    clearRuntimeErrors,
   } = useProjectStore();
   
   const {
@@ -513,61 +516,64 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
                       </div>
                     )}
                     
-                    {/* Per-message edited files - Rork style collapsible */}
+                    {/* Per-message edited files - Rork style bordered box */}
                     {msg.filesChanged && msg.filesChanged.length > 0 && (
-                      <div className="mt-3">
+                      <div className="mt-4 bg-[#18181b]/50 border border-[#3f3f46]/50 rounded-xl overflow-hidden">
                         {/* Collapsible header */}
                         <button
                           onClick={() => setExpandedFiles(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
-                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-300 transition-colors mb-1"
+                          className="w-full px-4 py-3 flex items-center gap-2 text-left text-sm text-gray-300 border-b border-[#3f3f46]/30 hover:bg-[#27272a]/50 transition-colors"
                         >
                           {expandedFiles[msg.id] ? (
-                            <ChevronDown size={12} className="text-gray-500" />
+                            <ChevronDown size={14} />
                           ) : (
-                            <ChevronRight size={12} className="text-gray-500" />
+                            <ChevronRight size={14} />
                           )}
-                          <FileCode size={12} />
-                          <span className="font-medium">
+                          <FileCode size={14} />
+                          <span className="font-semibold">
                             Edited {msg.filesChanged.length} file{msg.filesChanged.length > 1 ? 's' : ''}
                           </span>
                         </button>
                         
-                        {/* File entries - collapsible */}
+                        {/* Expanded content */}
                         {expandedFiles[msg.id] && (
-                          <div className="ml-1 bg-[#18181b] border border-[#27272a] rounded-lg overflow-hidden">
-                            {msg.filesChanged.map(filePath => (
-                              <button 
-                                key={filePath}
-                                onClick={() => onViewCode?.(filePath)}
-                                className="w-full px-3 py-1.5 flex items-center gap-2 text-xs border-b border-[#27272a] last:border-b-0 hover:bg-[#27272a]/50 text-left"
-                              >
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
-                                <span className="text-gray-400 truncate flex-1 font-mono text-[11px]">
-                                  {filePath.startsWith('/') ? filePath.slice(1) : filePath}
-                                </span>
+                          <div className="p-4 space-y-2">
+                            {/* File entries */}
+                            <div className="space-y-1">
+                              {msg.filesChanged.map(filePath => (
+                                <button 
+                                  key={filePath}
+                                  onClick={() => onViewCode?.(filePath)}
+                                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-[#27272a]/50 transition-colors text-left"
+                                >
+                                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
+                                  <span className="text-gray-300 truncate flex-1 font-mono">
+                                    {filePath.startsWith('/') ? filePath.slice(1) : filePath}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                            
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-3 pt-2 border-t border-[#3f3f46]/30">
+                              <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors opacity-50 cursor-not-allowed">
+                                <RotateCcw size={11} />
+                                Restore
                               </button>
-                            ))}
+                              <button 
+                                onClick={() => onViewCode?.(msg.filesChanged?.[0])}
+                                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                              >
+                                <Code size={11} />
+                                Code
+                              </button>
+                              <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors opacity-50 cursor-not-allowed">
+                                <Share2 size={11} />
+                                Share
+                              </button>
+                            </div>
                           </div>
                         )}
-                        
-                        {/* Action buttons row - Restore / Code / Share */}
-                        <div className="flex items-center gap-4 mt-2">
-                          <button className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors opacity-50 cursor-not-allowed">
-                            <RotateCcw size={11} />
-                            Restore
-                          </button>
-                          <button 
-                            onClick={() => onViewCode?.(msg.filesChanged?.[0])}
-                            className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
-                          >
-                            <Code size={11} />
-                            Code
-                          </button>
-                          <button className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors opacity-50 cursor-not-allowed">
-                            <Share2 size={11} />
-                            Share
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -578,6 +584,47 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
         )}
         <div ref={messagesEndRef} />
       </div>
+      
+      {/* Runtime Errors */}
+      {runtimeErrors.length > 0 && (
+        <div className="mx-3 mb-2 bg-red-500/10 border border-red-500/30 rounded-lg overflow-hidden">
+          <div className="px-3 py-2.5 flex items-center gap-2">
+            <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+            <span className="text-xs text-red-400 font-medium flex-1">
+              {runtimeErrors.length} error{runtimeErrors.length > 1 ? 's' : ''} while running the app
+            </span>
+            <button
+              onClick={() => setShowErrorDetails(!showErrorDetails)}
+              className="text-[11px] text-gray-400 hover:text-gray-200 transition-colors px-2 py-0.5"
+            >
+              Details
+            </button>
+            <button
+              onClick={() => {
+                // Send a "fix all" prompt to the AI
+                const errorMessages = runtimeErrors.map(e => e.message).join('\n');
+                setInput(`Fix these runtime errors:\n${errorMessages}`);
+                clearRuntimeErrors();
+              }}
+              className="text-[11px] font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1 rounded-md transition-colors"
+            >
+              Fix all
+            </button>
+          </div>
+          {showErrorDetails && (
+            <div className="px-3 pb-2.5 border-t border-red-500/20">
+              {runtimeErrors.map(err => (
+                <div key={err.id} className="mt-2 text-xs text-red-300/80 font-mono break-all">
+                  {err.message}
+                  {err.details && (
+                    <div className="mt-1 text-red-300/50 text-[10px]">{err.details}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       
       {/* Input */}
       <div className="p-3 border-t border-[#27272a]">
@@ -692,7 +739,13 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors opacity-50 cursor-not-allowed"
+                title="Voice input (coming soon)"
+              >
+                <Mic size={16} />
+              </button>
               <button
                 onClick={handleSend}
                 disabled={isLoading || (!input.trim() && attachedImages.length === 0)}

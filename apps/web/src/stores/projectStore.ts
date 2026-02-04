@@ -17,6 +17,13 @@ export interface UIMessage {
   isStreaming?: boolean;
 }
 
+export interface RuntimeError {
+  id: string;
+  message: string;
+  details?: string;
+  timestamp: Date;
+}
+
 interface ProjectState {
   // State
   projectId: string | null;
@@ -28,6 +35,7 @@ interface ProjectState {
   selectedModel: 'claude' | 'gemini';
   streamingContent: string;
   generatingFiles: string[]; // File paths being generated in real-time
+  runtimeErrors: RuntimeError[];
   
   // Actions
   setProject: (id: string, name: string, files: Record<string, EditorFile>, messages?: UIMessage[]) => void;
@@ -45,6 +53,8 @@ interface ProjectState {
   appendStreamingContent: (content: string) => void;
   addGeneratingFile: (file: { path: string; content: string; language?: string }) => void;
   applyGeneratedFiles: (files: Array<{ path: string; content: string; language?: string }>) => void;
+  addRuntimeError: (message: string, details?: string) => void;
+  clearRuntimeErrors: () => void;
   reset: () => void;
 }
 
@@ -58,6 +68,7 @@ const initialState = {
   selectedModel: 'gemini' as const,
   streamingContent: '',
   generatingFiles: [] as string[],
+  runtimeErrors: [] as RuntimeError[],
 };
 
 function getLanguageFromPath(path: string): string {
@@ -190,6 +201,19 @@ export const useProjectStore = create<ProjectState>()(
           isDirty: false,
         };
       }
+    }),
+    
+    addRuntimeError: (message, details) => set((state) => {
+      state.runtimeErrors.push({
+        id: crypto.randomUUID(),
+        message,
+        details,
+        timestamp: new Date(),
+      });
+    }),
+    
+    clearRuntimeErrors: () => set((state) => {
+      state.runtimeErrors = [];
     }),
     
     reset: () => set(initialState),
