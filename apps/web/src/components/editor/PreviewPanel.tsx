@@ -112,14 +112,20 @@ const styles = StyleSheet.create({
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
   const { files, isGenerating, generatingFiles, streamingContent } = useProjectStore();
 
-  // Ref that the Snack SDK reads lazily via ref.current when posting messages to the iframe.
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
-  const iframeConnectedRef = useRef(false);
+
+  // Buffer to capture CONNECT messages from iframe that arrive before
+  // the Snack transport starts listening.
+  const earlyMessagesRef = useRef<MessageEvent[]>([]);
+  const transportStartedRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [webPreviewURL, setWebPreviewURL] = useState<string | undefined>(undefined);
+
+  // The S3 origin the web player iframe will postMessage from.
+  const webPlayerOriginRef = useRef<string | null>(null);
 
   const snackFiles = useMemo(() => {
     const transformed = transformFilesToSnack(files);
@@ -136,11 +142,17 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const dependencies = useMemo(() => extractDependencies(files), [files]);
 
   // === SNACK LIFECYCLE ===
-  // 1. Resolve SDK version (probe S3 for web player availability)
-  // 2. Create Snack with disabled: true
-  // 3. Render iframe with webPreviewURL
-  // 4. After iframe loads, enable Snack + listen for CONNECT via postMessage
-  // 5. Inject synthetic CONNECT as fallback if real one was missed
+  //
+  // The web player iframe (from S3) sends a CONNECT postMessage as soon as it
+  // boots. The Snack SDK's webplayer transport only listens for this message
+  // AFTER setDisabled(false) calls transport.start() -> addEventListener.
+  //
+  // Race condition: iframe sends CONNECT before we call setDisabled(false).
+  // The CONNECT is lost, connectionsCount stays 0, and sendCodeChanges is a no-op.
+  //
+  // Fix: We install our OWN early listener on the window BEFORE the iframe loads.
+  // This captures any CONNECT from the S3 origin. After transport starts, we
+  // replay the captured message by re-dispatching it so the transport picks it up.
 
   useEffect(() => {
     let cancelled = false;
@@ -149,14 +161,31 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       snackRef.current.setOnline(false);
       snackRef.current = null;
     }
-    iframeConnectedRef.current = false;
+    earlyMessagesRef.current = [];
+    transportStartedRef.current = false;
+
+    // Early listener: capture CONNECT messages from the web player iframe
+    // before the Snack transport is ready.
+    const earlyListener = (event: MessageEvent) => {
+      if (transportStartedRef.current) return; // Transport already handles it
+      // Only capture messages from the S3 web player origin
+      if (webPlayerOriginRef.current && event.origin === webPlayerOriginRef.current) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'CONNECT' || data.type === 'MESSAGE') {
+            earlyMessagesRef.current.push(event);
+          }
+        } catch { /* not JSON, ignore */ }
+      }
+    };
+    window.addEventListener('message', earlyListener, false);
 
     async function initSnack() {
       const sdkVersion = await resolveSDKVersion();
       if (cancelled) return;
 
       const snack = new Snack({
-        disabled: true, // Start disabled - enable after iframe mounts
+        disabled: true,
         files: snackFiles,
         dependencies,
         sdkVersion,
@@ -166,10 +195,13 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 
       snackRef.current = snack;
 
-      // webPreviewURL is computed in the constructor even when disabled
       const initialState = snack.getState();
       if (initialState.webPreviewURL) {
         setWebPreviewURL(initialState.webPreviewURL);
+        // Extract the S3 origin so we can filter early messages
+        try {
+          webPlayerOriginRef.current = new URL(initialState.webPreviewURL).origin;
+        } catch { /* ignore */ }
       }
       if (initialState.url) {
         onExpoURLChange?.(initialState.url);
@@ -184,28 +216,20 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
         }
         const clientCount = Object.keys(state.connectedClients || {}).length;
         onDevicesChange?.(clientCount);
-
-        // Detect when the webplayer transport receives a real CONNECT
-        if (clientCount > 0) {
-          iframeConnectedRef.current = true;
-        }
       });
 
       return unsubscribe;
     }
 
     let unsubscribe: (() => void) | undefined;
+    initSnack().then((unsub) => { unsubscribe = unsub; });
 
-    initSnack().then((unsub) => {
-      unsubscribe = unsub;
-    });
-
-    // Timeout fallback
     const timeout = setTimeout(() => setIsLoading(false), 20000);
 
     return () => {
       cancelled = true;
       clearTimeout(timeout);
+      window.removeEventListener('message', earlyListener, false);
       unsubscribe?.();
       if (snackRef.current) {
         snackRef.current.setOnline(false);
@@ -228,68 +252,73 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
     }
   }, [dependencies]);
 
-  // Iframe ref callback: captures contentWindow into webPreviewRef
   const handleIframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
     webPreviewRef.current = iframe?.contentWindow ?? null;
   }, []);
 
-  // When iframe finishes loading the Snack runtime:
-  //   1. Re-capture contentWindow (iframe navigation may have replaced it)
-  //   2. Listen for CONNECT postMessage from the web player BEFORE enabling the Snack
-  //   3. Enable the Snack (starts transports)
-  //   4. If no real CONNECT received within a grace period, inject synthetic CONNECT
-  //      directly via window.postMessage so the transport's own listener picks it up
+  // When the iframe finishes loading the Snack web player runtime:
+  //   1. Re-capture contentWindow
+  //   2. Enable the Snack (starts the webplayer transport's event listener)
+  //   3. Replay any CONNECT messages captured by our early listener
+  //   4. If still no connection after a grace period, force-reload the iframe
   const handleIframeLoad = useCallback(() => {
     const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
     if (iframe?.contentWindow) {
       webPreviewRef.current = iframe.contentWindow;
     }
 
-    // Enable the Snack transport so it starts listening for postMessages
-    // Small delay to let the web player runtime finish initializing
+    if (!snackRef.current) return;
+
+    // Enable transport immediately (no artificial delay).
+    // The transport calls window.addEventListener('message', handler).
+    snackRef.current.setDisabled(false);
+    snackRef.current.setOnline(true);
+    transportStartedRef.current = true;
+
+    // Replay any CONNECT messages that arrived before the transport started.
+    // We re-dispatch them on the window so the transport's own listener picks them up.
+    if (earlyMessagesRef.current.length > 0) {
+      for (const captured of earlyMessagesRef.current) {
+        window.dispatchEvent(new MessageEvent('message', {
+          data: captured.data,
+          origin: captured.origin,
+          source: captured.source,
+        }));
+      }
+      earlyMessagesRef.current = [];
+    }
+
+    // Grace period: if no connected clients after 2s, the web player may
+    // have sent CONNECT even before our early listener was ready (very fast load).
+    // In that case, reload the iframe to force a fresh CONNECT.
     setTimeout(() => {
       if (!snackRef.current) return;
+      const state = snackRef.current.getState();
+      const hasClients = Object.keys(state.connectedClients || {}).length > 0;
 
-      snackRef.current.setDisabled(false);
-      snackRef.current.setOnline(true);
-
-      // After enabling, wait for the real CONNECT from the iframe.
-      // If it doesn't come (because it was sent before we started listening),
-      // inject a synthetic one via window.postMessage so the transport's own
-      // handleDomWindowMessage picks it up naturally and increments connectionsCount.
-      setTimeout(() => {
-        if (!snackRef.current) return;
-
-        const state = snackRef.current.getState();
-        const hasClients = Object.keys(state.connectedClients || {}).length > 0;
-
-        if (!hasClients && !iframeConnectedRef.current) {
-          // The iframe's CONNECT was lost. Inject a synthetic one via
-          // window.postMessage — the transport listens on the window
-          // 'message' event and will process this normally.
-          const webPlayerURL = state.webPreviewURL;
-          const origin = webPlayerURL ? new URL(webPlayerURL).origin : '*';
-
-          window.postMessage(JSON.stringify({
-            type: 'CONNECT',
-            device: { id: 'web-synthetic', name: 'Web Player', platform: 'web' },
-          }), origin === '*' ? '*' : window.location.origin);
-
-          // Also try sending code changes directly
-          setTimeout(() => {
-            snackRef.current?.sendCodeChanges();
-          }, 300);
+      if (!hasClients) {
+        // Force the web player to reconnect by reloading the iframe
+        const iframeEl = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
+        if (iframeEl && iframeEl.contentWindow) {
+          // Nudge via contentWindow reload — triggers a fresh CONNECT
+          try { iframeEl.contentWindow.location.reload(); } catch { /* cross-origin, ignore */ }
         }
-      }, 1500);
+      }
+    }, 2500);
 
-      setIsLoading(false);
-    }, 500);
+    setIsLoading(false);
   }, []);
 
   const handleRefresh = useCallback(() => {
     if (snackRef.current) {
       setIsLoading(true);
-      snackRef.current.sendCodeChanges();
+      // Reload iframe to get a fresh CONNECT + code push cycle
+      const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
+      if (iframe) {
+        transportStartedRef.current = false;
+        earlyMessagesRef.current = [];
+        try { iframe.contentWindow?.location.reload(); } catch { /* cross-origin */ }
+      }
       setTimeout(() => setIsLoading(false), 3000);
     }
   }, []);
