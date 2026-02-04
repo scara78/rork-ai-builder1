@@ -7,8 +7,13 @@ import { useAgentStore } from '@/stores/agentStore';
 import { AgentStatus } from './AgentStatus';
 
 // Strip <file path="...">...</file> blocks from AI response text
+// Also handles partial blocks during streaming (no closing tag yet)
 function stripFileBlocks(text: string): string {
-  return text.replace(/<file path="[^"]*">[\s\S]*?<\/file>/g, '').trim();
+  return text
+    .replace(/<file path="[^"]*">[\s\S]*?<\/file>/g, '')  // Complete blocks
+    .replace(/<file path="[^"]*">[\s\S]*$/g, '')           // Partial block at end (streaming)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 interface ChatPanelProps {

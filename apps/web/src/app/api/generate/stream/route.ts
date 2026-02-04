@@ -62,10 +62,10 @@ export async function POST(request: NextRequest) {
           return;
         }
         
-        // Get API key
+        // Get API key (support both GEMINI_API_KEY and GOOGLE_AI_API_KEY)
         const apiKey = model === 'claude' 
           ? process.env.ANTHROPIC_API_KEY 
-          : process.env.GEMINI_API_KEY;
+          : (process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
         
         if (!apiKey) {
           controller.enqueue(encoder.encode(
