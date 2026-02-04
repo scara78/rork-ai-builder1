@@ -11,35 +11,22 @@ interface PreviewPanelProps {
   onDevicesChange?: (count: number) => void;
 }
 
-// Default SDK version
 const SDK_VERSION = '52.0.0';
 
-// Transform project files to Snack format
 function transformFilesToSnack(files: Record<string, { path: string; content: string }>): SnackFiles {
   const snackFiles: SnackFiles = {};
-  
   Object.values(files).forEach((file) => {
     const path = file.path.startsWith('/') ? file.path.slice(1) : file.path;
-    
-    if (path.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/i)) {
-      return;
-    }
-    
-    snackFiles[path] = {
-      type: 'CODE',
-      contents: file.content,
-    };
+    if (path.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/i)) return;
+    snackFiles[path] = { type: 'CODE', contents: file.content };
   });
-  
   return snackFiles;
 }
 
-// Extract dependencies from package.json
 function extractDependencies(files: Record<string, { path: string; content: string }>): SnackDependencies {
-  const packageFile = Object.values(files).find(f => 
+  const packageFile = Object.values(files).find(f =>
     f.path === 'package.json' || f.path === '/package.json'
   );
-  
   const deps: SnackDependencies = {
     'expo-router': { version: '*' },
     'expo-status-bar': { version: '*' },
@@ -55,7 +42,6 @@ function extractDependencies(files: Record<string, { path: string; content: stri
     'react-native-reanimated': { version: '*' },
     '@react-native-async-storage/async-storage': { version: '*' },
   };
-  
   if (packageFile) {
     try {
       const pkg = JSON.parse(packageFile.content);
@@ -66,15 +52,11 @@ function extractDependencies(files: Record<string, { path: string; content: stri
           }
         });
       }
-    } catch {
-      // Ignore parse errors
-    }
+    } catch { /* ignore */ }
   }
-  
   return deps;
 }
 
-// Default App.js content
 const DEFAULT_APP = `import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -113,95 +95,80 @@ const styles = StyleSheet.create({
 
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
   const { files } = useProjectStore();
-  
-  // webPreviewRef is read lazily by the Snack transport - it's fine if it's null at construction time.
-  // It gets set when the iframe mounts via the ref callback.
+
+  // Ref that the Snack SDK reads lazily via ref.current when posting messages to the iframe.
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [webPreviewURL, setWebPreviewURL] = useState<string | undefined>(undefined);
-  const [expoURL, setExpoURL] = useState<string | undefined>(undefined);
-  
-  // Transform files to Snack format
+
   const snackFiles = useMemo(() => {
     const transformed = transformFilesToSnack(files);
-    
-    const hasAppJs = Object.keys(transformed).some(path => 
-      path === 'App.js' || path === 'App.tsx'
+    const hasAppJs = Object.keys(transformed).some(p => p === 'App.js' || p === 'App.tsx');
+    const hasExpoRouter = Object.keys(transformed).some(p =>
+      p.startsWith('app/') && (p.endsWith('index.tsx') || p.endsWith('index.js'))
     );
-    
-    const hasExpoRouter = Object.keys(transformed).some(path => 
-      path.startsWith('app/') && (path.endsWith('index.tsx') || path.endsWith('index.js'))
-    );
-    
     if (!hasAppJs && !hasExpoRouter) {
-      transformed['App.js'] = {
-        type: 'CODE',
-        contents: DEFAULT_APP,
-      };
+      transformed['App.js'] = { type: 'CODE', contents: DEFAULT_APP };
     }
-    
     return transformed;
   }, [files]);
-  
+
   const dependencies = useMemo(() => extractDependencies(files), [files]);
-  
-  // Initialize Snack synchronously on mount.
-  // webPreviewRef.current is null at this point - that's fine because the transport
-  // reads ref.current lazily when sending messages, not at construction time.
-  // The webPreviewURL is computed immediately in the constructor.
+
+  // === SNACK LIFECYCLE ===
+  // Following the official snack.expo.dev pattern:
+  //   1. Create Snack with disabled: true (no transports start, no code messages sent)
+  //   2. webPreviewURL is still computed immediately
+  //   3. Render iframe with that URL
+  //   4. After iframe mounts and sets webPreviewRef.current, call setDisabled(false)
+  //   5. This starts the webplayer transport, which can now communicate with the iframe
+  //
+  // We do NOT pass online: true - that's only for pubsub (physical device via QR).
+  // The web preview works through the 'webplayer' transport alone.
+
   useEffect(() => {
-    // Clean up previous snack
     if (snackRef.current) {
       snackRef.current.setOnline(false);
       snackRef.current = null;
     }
-    
+
     const snack = new Snack({
+      disabled: true, // Start disabled - enable after iframe mounts
       files: snackFiles,
       dependencies,
       sdkVersion: SDK_VERSION,
       webPreviewRef,
-      online: true,
       codeChangesDelay: 500,
     });
-    
+
     snackRef.current = snack;
-    
-    // webPreviewURL is available immediately after construction
+
+    // webPreviewURL is computed in the constructor even when disabled
     const initialState = snack.getState();
     if (initialState.webPreviewURL) {
       setWebPreviewURL(initialState.webPreviewURL);
     }
     if (initialState.url) {
-      setExpoURL(initialState.url);
       onExpoURLChange?.(initialState.url);
     }
-    
+
     const unsubscribe = snack.addStateListener((state, prevState) => {
-      // Update web preview URL if it changes
       if (state.webPreviewURL !== prevState.webPreviewURL) {
         setWebPreviewURL(state.webPreviewURL);
       }
-      
-      // Pass Expo URL to parent for QR panel
       if (state.url !== prevState.url) {
-        setExpoURL(state.url);
         onExpoURLChange?.(state.url);
       }
-      
-      // Track connected clients
       const clientCount = Object.keys(state.connectedClients || {}).length;
       onDevicesChange?.(clientCount);
     });
-    
-    // Timeout - if still loading after 15s, stop spinner
-    const timeout = setTimeout(() => {
-      setIsLoading(false);
-    }, 15000);
-    
+
+    // Timeout fallback
+    const timeout = setTimeout(() => setIsLoading(false), 20000);
+
     return () => {
       clearTimeout(timeout);
       unsubscribe();
@@ -209,42 +176,46 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       snackRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
-  
-  // Update files when they change (after initial mount)
+  }, []);
+
+  // Update files reactively
   useEffect(() => {
     if (snackRef.current) {
       snackRef.current.updateFiles(snackFiles);
     }
   }, [snackFiles]);
-  
-  // Update dependencies when they change
+
   useEffect(() => {
     if (snackRef.current) {
       snackRef.current.updateDependencies(dependencies);
     }
   }, [dependencies]);
-  
-  // Iframe ref callback - sets webPreviewRef.current to the iframe's contentWindow.
-  // This is the pattern used by the official Expo Snack website (WebFrame.tsx).
-  // The key insight: the iframe src is already set to webPreviewURL before this fires,
-  // so contentWindow is the actual Snack runtime window - no stale reference issue.
+
+  // Iframe ref callback: captures contentWindow into webPreviewRef
   const handleIframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
     webPreviewRef.current = iframe?.contentWindow ?? null;
   }, []);
-  
-  // When the iframe loads (navigates to the web player URL), update the ref
-  // and mark loading as complete. This handles the case where the iframe
-  // content changes (e.g., when webPreviewURL first becomes available).
+
+  // When iframe finishes loading the Snack runtime:
+  //   1. Re-capture contentWindow (iframe navigation may have replaced it)
+  //   2. Enable the Snack (starts transports, sends code to the iframe runtime)
+  //   3. Also enable online for QR code / physical device support
   const handleIframeLoad = useCallback(() => {
-    // Re-capture contentWindow after navigation completes
     const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
     if (iframe?.contentWindow) {
       webPreviewRef.current = iframe.contentWindow;
     }
+
+    // NOW enable the Snack - the iframe is loaded and ref.current is set
+    if (snackRef.current) {
+      snackRef.current.setDisabled(false);
+      // Also enable online for QR code support (pubsub transport)
+      snackRef.current.setOnline(true);
+    }
+
     setIsLoading(false);
   }, []);
-  
+
   const handleRefresh = useCallback(() => {
     if (snackRef.current) {
       setIsLoading(true);
@@ -252,7 +223,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       setTimeout(() => setIsLoading(false), 3000);
     }
   }, []);
-  
+
   if (error) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#050505]">
@@ -260,7 +231,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
           <p className="text-red-400 text-sm mb-2">Preview Error</p>
           <p className="text-gray-500 text-xs">{error}</p>
-          <button 
+          <button
             onClick={() => setError(null)}
             className="mt-4 px-3 py-1.5 bg-white/10 text-white rounded text-xs hover:bg-white/20"
           >
@@ -270,10 +241,10 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       </div>
     );
   }
-  
+
   return (
     <div className="h-full w-full flex flex-col bg-[#050505]">
-      {/* Controls - top right corner */}
+      {/* Controls */}
       <div className="absolute top-4 right-4 z-20">
         <div className="flex items-center bg-[#0a0a0a] border border-[#27272a] rounded-lg shadow-xl p-1 gap-1">
           <div className="flex items-center gap-2 px-2 py-1 border-r border-[#27272a] mr-1">
@@ -292,8 +263,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               </>
             )}
           </div>
-          
-          <button 
+          <button
             onClick={handleRefresh}
             className="p-1.5 text-gray-400 hover:text-white hover:bg-[#27272a] rounded"
             title="Refresh preview"
@@ -302,18 +272,14 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
           </button>
         </div>
       </div>
-      
-      {/* Preview Area - Centered Phone Frame */}
+
+      {/* Preview Area */}
       <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-        {/* Grid Background */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px]" />
-        
-        {/* Phone Frame - Larger for center focus */}
+
+        {/* Phone Frame */}
         <div className="relative w-[375px] h-[812px] bg-black rounded-[50px] border-[6px] border-[#18181b] shadow-[0_0_100px_-30px_rgba(0,0,0,0.7)] overflow-hidden ring-1 ring-white/5 z-10 scale-[0.72] origin-center">
-          {/* Dynamic Island */}
           <div className="absolute top-[11px] left-1/2 transform -translate-x-1/2 w-[100px] h-[30px] bg-black rounded-[20px] z-50" />
-          
-          {/* Status Bar */}
           <div className="absolute top-0 w-full h-12 z-40 flex justify-between items-end px-6 pb-2">
             <div className="text-white text-[13px] font-semibold pl-2">9:41</div>
             <div className="flex items-center gap-1.5">
@@ -322,10 +288,11 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               </div>
             </div>
           </div>
-          
-          {/* Preview Content */}
+
           <div className="absolute inset-0 pt-12 pb-8 bg-[#0a0a0a] overflow-hidden">
-            {/* Iframe loads the Snack web player runtime URL directly - never about:blank */}
+            {/* Always render iframe when URL is available. 
+                The Snack starts disabled, iframe loads the runtime,
+                then onLoad enables the Snack so transport can communicate. */}
             {webPreviewURL ? (
               <iframe
                 ref={handleIframeRef}
@@ -337,8 +304,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
                 sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
               />
             ) : null}
-            
-            {/* Loading overlay - shown until iframe loads */}
+
             {(!webPreviewURL || isLoading) && (
               <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
                 <div className="text-center text-gray-500">
@@ -351,8 +317,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               </div>
             )}
           </div>
-          
-          {/* Home Indicator */}
+
           <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-[130px] h-[5px] bg-white/90 rounded-full z-50" />
         </div>
       </div>

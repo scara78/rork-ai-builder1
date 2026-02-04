@@ -28,7 +28,7 @@ export class GeminiProvider implements AIProvider {
       systemPrompt,
       currentFiles,
       conversationHistory = [],
-      maxTokens = 16384,
+      maxTokens = 65536,
     } = params;
     
     // Build the full system prompt with Expo SDK 54+ knowledge
@@ -85,7 +85,7 @@ export class GeminiProvider implements AIProvider {
       systemPrompt,
       currentFiles,
       conversationHistory = [],
-      maxTokens = 16384,
+      maxTokens = 65536,
     } = params;
     
     // Build the full system prompt with Expo SDK 54+ knowledge

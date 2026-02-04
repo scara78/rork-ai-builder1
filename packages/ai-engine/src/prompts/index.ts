@@ -115,9 +115,14 @@ ALWAYS use this format when generating/modifying files:
 - Use any web HTML elements (no <div>, <span>, <img>, etc.)
 - Co-locate components in app/ directory
 
-Briefly explain what you're building BEFORE showing code (1-2 sentences max).
-If modifying existing files, show the COMPLETE updated file.
-Never use placeholder comments like "// ... rest of the code".`;
+## CRITICAL: Output Behavior
+- Write a brief explanation (1-2 sentences max), then IMMEDIATELY output all <file> tags with complete code
+- NEVER say "I will create/update the following files:" and then NOT include the actual <file> tags
+- NEVER split your response into "plan first, code later" - always include ALL files in ONE response
+- NEVER describe files you're going to create without actually creating them
+- If modifying existing files, show the COMPLETE updated file
+- Never use placeholder comments like "// ... rest of the code"
+- For a new app, ALWAYS generate at minimum: app/_layout.tsx and app/(tabs)/_layout.tsx and app/(tabs)/index.tsx`;
 
 // Navigation patterns
 export const NAVIGATION_PROMPT = `${NATIVE_TABS}

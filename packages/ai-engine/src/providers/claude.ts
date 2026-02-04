@@ -26,7 +26,7 @@ export class ClaudeProvider implements AIProvider {
       systemPrompt,
       currentFiles,
       conversationHistory = [],
-      maxTokens = 8192,
+      maxTokens = 16384,
       images = [],
     } = params;
     
@@ -83,7 +83,7 @@ export class ClaudeProvider implements AIProvider {
       systemPrompt,
       currentFiles,
       conversationHistory = [],
-      maxTokens = 8192,
+      maxTokens = 16384,
       images = [],
     } = params;
     
