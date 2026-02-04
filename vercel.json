@@ -1,9 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "pnpm build",
+  "buildCommand": "cd ../.. && pnpm build --filter=web",
   "outputDirectory": ".next",
-  "installCommand": "pnpm install",
+  "installCommand": "cd ../.. && pnpm install",
+  "rootDirectory": "apps/web",
   "regions": ["iad1"],
   "functions": {
     "src/app/api/agent/run/route.ts": {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Monitor, ChevronDown } from 'lucide-react';
-import { Snack, SnackFiles, SnackDependencies } from 'snack-sdk';
+import { Snack, SnackFiles, SnackDependencies, type SDKVersion } from 'snack-sdk';
 import { useProjectStore } from '@/stores/projectStore';
 
 interface PreviewPanelProps {
@@ -11,7 +11,23 @@ interface PreviewPanelProps {
   onDevicesChange?: (count: number) => void;
 }
 
-const SDK_VERSION = '54.0.0';
+// Preferred SDK version. Falls back to 53.0.0 if the web player for 54 is unavailable.
+const PREFERRED_SDK_VERSION: SDKVersion = '54.0.0';
+const FALLBACK_SDK_VERSION: SDKVersion = '53.0.0';
+
+// Probe the S3 web player to see if it actually exists for the given SDK major version.
+async function resolveSDKVersion(): Promise<SDKVersion> {
+  const majorVersion = PREFERRED_SDK_VERSION.split('.')[0];
+  const probeURL = `https://snack-web-player.s3.us-west-1.amazonaws.com/v2/${majorVersion}/index.html`;
+  try {
+    await fetch(probeURL, { method: 'HEAD', mode: 'no-cors' });
+    // mode: 'no-cors' returns opaque response — treat as available if no network error
+    return PREFERRED_SDK_VERSION;
+  } catch {
+    console.warn(`Snack web player v${majorVersion} unavailable, falling back to ${FALLBACK_SDK_VERSION}`);
+    return FALLBACK_SDK_VERSION;
+  }
+}
 
 function transformFilesToSnack(files: Record<string, { path: string; content: string }>): SnackFiles {
   const snackFiles: SnackFiles = {};
@@ -99,6 +115,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   // Ref that the Snack SDK reads lazily via ref.current when posting messages to the iframe.
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
+  const iframeConnectedRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,61 +136,81 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const dependencies = useMemo(() => extractDependencies(files), [files]);
 
   // === SNACK LIFECYCLE ===
-  // Following the official snack.expo.dev pattern:
-  //   1. Create Snack with disabled: true (no transports start, no code messages sent)
-  //   2. webPreviewURL is still computed immediately
-  //   3. Render iframe with that URL
-  //   4. After iframe mounts and sets webPreviewRef.current, call setDisabled(false)
-  //   5. This starts the webplayer transport, which can now communicate with the iframe
-  //
-  // We do NOT pass online: true - that's only for pubsub (physical device via QR).
-  // The web preview works through the 'webplayer' transport alone.
+  // 1. Resolve SDK version (probe S3 for web player availability)
+  // 2. Create Snack with disabled: true
+  // 3. Render iframe with webPreviewURL
+  // 4. After iframe loads, enable Snack + listen for CONNECT via postMessage
+  // 5. Inject synthetic CONNECT as fallback if real one was missed
 
   useEffect(() => {
+    let cancelled = false;
+
     if (snackRef.current) {
       snackRef.current.setOnline(false);
       snackRef.current = null;
     }
+    iframeConnectedRef.current = false;
 
-    const snack = new Snack({
-      disabled: true, // Start disabled - enable after iframe mounts
-      files: snackFiles,
-      dependencies,
-      sdkVersion: SDK_VERSION,
-      webPreviewRef,
-      codeChangesDelay: 500,
-    });
+    async function initSnack() {
+      const sdkVersion = await resolveSDKVersion();
+      if (cancelled) return;
 
-    snackRef.current = snack;
+      const snack = new Snack({
+        disabled: true, // Start disabled - enable after iframe mounts
+        files: snackFiles,
+        dependencies,
+        sdkVersion,
+        webPreviewRef,
+        codeChangesDelay: 500,
+      });
 
-    // webPreviewURL is computed in the constructor even when disabled
-    const initialState = snack.getState();
-    if (initialState.webPreviewURL) {
-      setWebPreviewURL(initialState.webPreviewURL);
-    }
-    if (initialState.url) {
-      onExpoURLChange?.(initialState.url);
-    }
+      snackRef.current = snack;
 
-    const unsubscribe = snack.addStateListener((state, prevState) => {
-      if (state.webPreviewURL !== prevState.webPreviewURL) {
-        setWebPreviewURL(state.webPreviewURL);
+      // webPreviewURL is computed in the constructor even when disabled
+      const initialState = snack.getState();
+      if (initialState.webPreviewURL) {
+        setWebPreviewURL(initialState.webPreviewURL);
       }
-      if (state.url !== prevState.url) {
-        onExpoURLChange?.(state.url);
+      if (initialState.url) {
+        onExpoURLChange?.(initialState.url);
       }
-      const clientCount = Object.keys(state.connectedClients || {}).length;
-      onDevicesChange?.(clientCount);
+
+      const unsubscribe = snack.addStateListener((state, prevState) => {
+        if (state.webPreviewURL !== prevState.webPreviewURL) {
+          setWebPreviewURL(state.webPreviewURL);
+        }
+        if (state.url !== prevState.url) {
+          onExpoURLChange?.(state.url);
+        }
+        const clientCount = Object.keys(state.connectedClients || {}).length;
+        onDevicesChange?.(clientCount);
+
+        // Detect when the webplayer transport receives a real CONNECT
+        if (clientCount > 0) {
+          iframeConnectedRef.current = true;
+        }
+      });
+
+      return unsubscribe;
+    }
+
+    let unsubscribe: (() => void) | undefined;
+
+    initSnack().then((unsub) => {
+      unsubscribe = unsub;
     });
 
     // Timeout fallback
     const timeout = setTimeout(() => setIsLoading(false), 20000);
 
     return () => {
+      cancelled = true;
       clearTimeout(timeout);
-      unsubscribe();
-      snack.setOnline(false);
-      snackRef.current = null;
+      unsubscribe?.();
+      if (snackRef.current) {
+        snackRef.current.setOnline(false);
+        snackRef.current = null;
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -198,47 +235,55 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 
   // When iframe finishes loading the Snack runtime:
   //   1. Re-capture contentWindow (iframe navigation may have replaced it)
-  //   2. Enable the Snack (starts transports, sends code to the iframe runtime)
-  //   3. Inject synthetic CONNECT to fix race condition where iframe sent CONNECT before we started listening
-  //   4. Also enable online for QR code / physical device support
+  //   2. Listen for CONNECT postMessage from the web player BEFORE enabling the Snack
+  //   3. Enable the Snack (starts transports)
+  //   4. If no real CONNECT received within a grace period, inject synthetic CONNECT
+  //      directly via window.postMessage so the transport's own listener picks it up
   const handleIframeLoad = useCallback(() => {
     const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
     if (iframe?.contentWindow) {
       webPreviewRef.current = iframe.contentWindow;
     }
 
-    // Delay enabling to allow the web player inside the iframe to initialize
-    // its postMessage listener. Without this, messages from the SDK are lost.
+    // Enable the Snack transport so it starts listening for postMessages
+    // Small delay to let the web player runtime finish initializing
     setTimeout(() => {
-      if (snackRef.current) {
-        snackRef.current.setDisabled(false);
-        snackRef.current.setOnline(true);
+      if (!snackRef.current) return;
 
-        // Fix "Connecting..." forever bug:
-        // The iframe may have sent its CONNECT postMessage before setDisabled(false)
-        // started the webplayer transport listener. When that happens, connectionsCount
-        // stays 0 and sendCodeChanges() is a no-op.
-        // We inject a synthetic CONNECT event into the webplayer transport to force
-        // connectionsCount to 1, which allows code to be sent to the iframe.
-        setTimeout(() => {
-          if (snackRef.current) {
-            const state = snackRef.current.getState();
-            const webplayerTransport = state.transports?.webplayer;
-            if (webplayerTransport) {
-              webplayerTransport.postMessage({
-                type: 'synthetic_event',
-                data: JSON.stringify({
-                  type: 'CONNECT',
-                  device: { id: 'web-synthetic', name: 'Web Player', platform: 'web' },
-                }),
-              } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
-            }
-            snackRef.current.sendCodeChanges();
-          }
-        }, 500);
-      }
+      snackRef.current.setDisabled(false);
+      snackRef.current.setOnline(true);
+
+      // After enabling, wait for the real CONNECT from the iframe.
+      // If it doesn't come (because it was sent before we started listening),
+      // inject a synthetic one via window.postMessage so the transport's own
+      // handleDomWindowMessage picks it up naturally and increments connectionsCount.
+      setTimeout(() => {
+        if (!snackRef.current) return;
+
+        const state = snackRef.current.getState();
+        const hasClients = Object.keys(state.connectedClients || {}).length > 0;
+
+        if (!hasClients && !iframeConnectedRef.current) {
+          // The iframe's CONNECT was lost. Inject a synthetic one via
+          // window.postMessage — the transport listens on the window
+          // 'message' event and will process this normally.
+          const webPlayerURL = state.webPreviewURL;
+          const origin = webPlayerURL ? new URL(webPlayerURL).origin : '*';
+
+          window.postMessage(JSON.stringify({
+            type: 'CONNECT',
+            device: { id: 'web-synthetic', name: 'Web Player', platform: 'web' },
+          }), origin === '*' ? '*' : window.location.origin);
+
+          // Also try sending code changes directly
+          setTimeout(() => {
+            snackRef.current?.sendCodeChanges();
+          }, 300);
+        }
+      }, 1500);
+
       setIsLoading(false);
-    }, 1000);
+    }, 500);
   }, []);
 
   const handleRefresh = useCallback(() => {

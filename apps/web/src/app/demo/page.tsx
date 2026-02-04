@@ -344,12 +344,14 @@ function DemoChatPanel({ projectId }: { projectId: string }) {
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
       
       if (reader) {
+        let buffer = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? ''; // Keep incomplete last line for next chunk
           
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -369,7 +371,10 @@ function DemoChatPanel({ projectId }: { projectId: string }) {
                   throw new Error(data.error);
                 }
               } catch (e) {
-                // Ignore parse errors
+                if (e instanceof Error && e.message !== 'Unexpected end of JSON input' && !e.message.startsWith('Unexpected token')) {
+                  throw e; // Re-throw non-parse errors (like the data.error case above)
+                }
+                console.warn('SSE parse error (demo):', e);
               }
             }
           }
