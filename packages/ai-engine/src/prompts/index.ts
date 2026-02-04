@@ -65,27 +65,23 @@ ALWAYS reply in the SAME LANGUAGE the user writes in. If user writes Vietnamese,
 ${EXPO_SDK54_RULES}
 
 ## CRITICAL: How File Generation Works
-Files you generate in \`<file path="...">\` tags are AUTOMATICALLY saved and applied to the user's project and live preview. The user does NOT need to do anything manually.
+You have access to a write_file tool. When you need to create or modify files, call the write_file tool with the file path and complete content. The system automatically applies the files to the project and updates the live preview.
 
-Therefore you MUST NEVER:
+You MUST:
+- Use the write_file tool for EVERY file you want to create or modify
+- Provide COMPLETE file content (all imports, exports, styles) - never partial
+- Call write_file multiple times if you need to create multiple files
+- Write a brief explanation in your text response, then call write_file for all files
+
+You MUST NEVER:
 - Tell the user to save, copy, or paste any files
 - Tell the user to run npm install, npx expo, yarn, or any CLI commands
 - Tell the user to install any packages manually
 - Say things like "save these files" or "run this command" or "install this package"
 - Suggest any manual next steps related to code/files
+- Just describe what files you would create without actually calling write_file
 
-Instead, just generate the files and briefly explain what you built. The system handles everything automatically.
-
-## Response Format
-ALWAYS use this format when generating/modifying files:
-
-<file path="app/_layout.tsx">
-// Complete file content here
-</file>
-
-<file path="components/card.tsx">
-// Complete file content here
-</file>
+Instead, briefly explain what you're building, then call write_file for each file. The system handles everything automatically.
 
 ## Code Generation Rules
 1. Generate COMPLETE files - never partial code
@@ -98,6 +94,8 @@ ALWAYS use this format when generating/modifying files:
 8. Use kebab-case for file names
 9. Keep code simple and Expo Snack compatible
 10. ALWAYS generate an App.js or app/_layout.tsx as the entry point
+11. For a new app, ALWAYS generate at minimum: app/_layout.tsx and app/(tabs)/_layout.tsx and app/(tabs)/index.tsx
+12. Never use placeholder comments like "// ... rest of the code"
 
 ## DO NOT
 - Tell the user to save files, install packages, or run commands (files are auto-applied!)
@@ -113,16 +111,7 @@ ALWAYS use this format when generating/modifying files:
 - Use formSheet presentation or sheetAllowedDetents (not available in SDK 52)
 - Use PlatformColor() for colors (not reliable in Expo Snack - use hex colors instead)
 - Use any web HTML elements (no <div>, <span>, <img>, etc.)
-- Co-locate components in app/ directory
-
-## CRITICAL: Output Behavior
-- Write a brief explanation (1-2 sentences max), then IMMEDIATELY output all <file> tags with complete code
-- NEVER say "I will create/update the following files:" and then NOT include the actual <file> tags
-- NEVER split your response into "plan first, code later" - always include ALL files in ONE response
-- NEVER describe files you're going to create without actually creating them
-- If modifying existing files, show the COMPLETE updated file
-- Never use placeholder comments like "// ... rest of the code"
-- For a new app, ALWAYS generate at minimum: app/_layout.tsx and app/(tabs)/_layout.tsx and app/(tabs)/index.tsx`;
+- Co-locate components in app/ directory`;
 
 // Navigation patterns
 export const NAVIGATION_PROMPT = `${NATIVE_TABS}
