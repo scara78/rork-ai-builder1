@@ -27,6 +27,7 @@ interface ProjectState {
   isGenerating: boolean;
   selectedModel: 'claude' | 'gemini';
   streamingContent: string;
+  generatingFiles: string[]; // File paths being generated in real-time
   
   // Actions
   setProject: (id: string, name: string, files: Record<string, EditorFile>, messages?: UIMessage[]) => void;
@@ -42,6 +43,7 @@ interface ProjectState {
   setSelectedModel: (model: 'claude' | 'gemini') => void;
   setStreamingContent: (content: string) => void;
   appendStreamingContent: (content: string) => void;
+  addGeneratingFile: (file: { path: string; content: string; language?: string }) => void;
   applyGeneratedFiles: (files: Array<{ path: string; content: string; language?: string }>) => void;
   reset: () => void;
 }
@@ -55,6 +57,7 @@ const initialState = {
   isGenerating: false,
   selectedModel: 'gemini' as const,
   streamingContent: '',
+  generatingFiles: [] as string[],
 };
 
 function getLanguageFromPath(path: string): string {
@@ -147,6 +150,9 @@ export const useProjectStore = create<ProjectState>()(
       state.isGenerating = value;
       if (!value) {
         state.streamingContent = '';
+        state.generatingFiles = [];
+      } else {
+        state.generatingFiles = [];
       }
     }),
     
@@ -160,6 +166,19 @@ export const useProjectStore = create<ProjectState>()(
     
     appendStreamingContent: (content) => set((state) => {
       state.streamingContent += content;
+    }),
+    
+    addGeneratingFile: (file) => set((state) => {
+      // Apply file immediately to the store AND track it
+      state.files[file.path] = {
+        path: file.path,
+        content: file.content,
+        language: file.language || getLanguageFromPath(file.path),
+        isDirty: false,
+      };
+      if (!state.generatingFiles.includes(file.path)) {
+        state.generatingFiles.push(file.path);
+      }
     }),
     
     applyGeneratedFiles: (files) => set((state) => {

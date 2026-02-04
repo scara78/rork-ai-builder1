@@ -80,8 +80,8 @@ export class GeminiProvider implements AIProvider {
     let outputTokens = 0;
     
     // Multi-turn: AI responds with text + function calls, we send results back, AI continues
-    let result = await chat.sendMessage(userContent);
-    let response = result.response;
+    // Using non-streaming sendMessage for all rounds (handles thought_signature automatically)
+    let response = (await chat.sendMessage(userContent)).response;
     
     for (let round = 0; round < 20; round++) {
       const candidate = response.candidates?.[0];
@@ -118,8 +118,7 @@ export class GeminiProvider implements AIProvider {
         },
       }));
       
-      result = await chat.sendMessage(functionResponses);
-      response = result.response;
+      response = (await chat.sendMessage(functionResponses)).response;
     }
     
     const usageMetadata = response.usageMetadata;
@@ -169,7 +168,7 @@ export class GeminiProvider implements AIProvider {
     let fullText = '';
     
     try {
-      // Multi-turn streaming: stream -> collect function calls -> send results -> repeat
+      // First turn: stream for text output
       let streamResult = await chat.sendMessageStream(userContent);
       
       for (let round = 0; round < 20; round++) {
@@ -202,7 +201,18 @@ export class GeminiProvider implements AIProvider {
           }
         }
         
-        if (functionCalls.length === 0) break;
+        // IMPORTANT: Await the full response before sending next message.
+        // This ensures the chat history includes thought_signature from thinking models.
+        const roundResponse = await streamResult.response;
+        
+        if (functionCalls.length === 0) {
+          // No more function calls - we're done
+          const usageMetadata = roundResponse.usageMetadata;
+          const inputTokens = usageMetadata?.promptTokenCount || Math.ceil(userContent.length / 4);
+          const outputTokens = usageMetadata?.candidatesTokenCount || Math.ceil(fullText.length / 4);
+          yield { type: 'done', usage: { inputTokens, outputTokens } };
+          return;
+        }
         
         const functionResponses = functionCalls.map(fc => ({
           functionResponse: {
@@ -211,15 +221,61 @@ export class GeminiProvider implements AIProvider {
           },
         }));
         
-        streamResult = await chat.sendMessageStream(functionResponses);
+        // Use non-streaming for multi-turn function responses to avoid thought_signature race conditions.
+        // Then stream again on the next round.
+        const nonStreamResult = await chat.sendMessage(functionResponses);
+        const nonStreamResponse = nonStreamResult.response;
+        const candidate = nonStreamResponse.candidates?.[0];
+        
+        if (!candidate?.content?.parts) break;
+        
+        // Process the non-streamed response for text and more function calls
+        const moreFunctionCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+        
+        for (const part of candidate.content.parts) {
+          if ('text' in part && part.text) {
+            fullText += part.text;
+            yield { type: 'text', content: part.text };
+          }
+          if ('functionCall' in part && part.functionCall) {
+            const fc = part.functionCall;
+            moreFunctionCalls.push({ name: fc.name, args: fc.args as Record<string, unknown> });
+            if (fc.name === 'write_file') {
+              const args = fc.args as { path: string; content: string };
+              if (args.path && args.content) {
+                yield {
+                  type: 'file',
+                  file: {
+                    path: args.path.trim(),
+                    content: args.content,
+                    language: getLanguageFromPath(args.path),
+                  },
+                };
+              }
+            }
+          }
+        }
+        
+        if (moreFunctionCalls.length === 0) {
+          const usageMetadata = nonStreamResponse.usageMetadata;
+          const inputTokens = usageMetadata?.promptTokenCount || Math.ceil(userContent.length / 4);
+          const outputTokens = usageMetadata?.candidatesTokenCount || Math.ceil(fullText.length / 4);
+          yield { type: 'done', usage: { inputTokens, outputTokens } };
+          return;
+        }
+        
+        // Continue the loop: send these function responses, then stream again
+        const moreResponses = moreFunctionCalls.map(fc => ({
+          functionResponse: {
+            name: fc.name,
+            response: { success: true },
+          },
+        }));
+        
+        streamResult = await chat.sendMessageStream(moreResponses);
       }
       
-      const finalResponse = await streamResult.response;
-      const usageMetadata = finalResponse.usageMetadata;
-      const inputTokens = usageMetadata?.promptTokenCount || Math.ceil(userContent.length / 4);
-      const outputTokens = usageMetadata?.candidatesTokenCount || Math.ceil(fullText.length / 4);
-      
-      yield { type: 'done', usage: { inputTokens, outputTokens } };
+      yield { type: 'done', usage: { inputTokens: 0, outputTokens: 0 } };
     } catch (error) {
       yield { type: 'error', error: error instanceof Error ? error.message : 'Unknown error' };
     }

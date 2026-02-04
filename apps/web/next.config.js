@@ -1,14 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@ai-engine/core', '@rork/shared'],
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
   images: {
-    domains: ['localhost'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+    ],
   },
+  serverExternalPackages: ['formidable', 'pubnub', 'superagent'],
 };
 
 module.exports = nextConfig;

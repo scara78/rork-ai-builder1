@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { 
   Search, 
   File, 
@@ -24,7 +24,7 @@ interface Command {
   id: string;
   name: string;
   description?: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   category: 'file' | 'action' | 'navigation' | 'settings';
   shortcut?: string;
   action: () => void;

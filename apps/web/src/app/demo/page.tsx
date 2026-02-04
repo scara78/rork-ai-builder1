@@ -2,12 +2,17 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { FileTree } from '@/components/editor/FileTree';
 import { CodePanel } from '@/components/editor/CodePanel';
 import { ChatPanel } from '@/components/editor/ChatPanel';
-import { PreviewPanel } from '@/components/editor/PreviewPanel';
 import { Toolbar } from '@/components/editor/Toolbar';
 import { CommandPalette } from '@/components/editor/CommandPalette';
+
+const PreviewPanel = dynamic(
+  () => import('@/components/editor/PreviewPanel').then(mod => mod.PreviewPanel),
+  { ssr: false, loading: () => <div className="h-full flex items-center justify-center text-gray-500">Loading preview...</div> }
+);
 import { useProjectStore, type EditorFile } from '@/stores/projectStore';
 import { useToast } from '@/components/ui/Toast';
 

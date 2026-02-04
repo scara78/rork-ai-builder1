@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Sparkles, LogOut, Settings, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
@@ -6,7 +7,7 @@ import { redirect } from 'next/navigation';
 export default async function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

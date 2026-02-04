@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useAgentStore } from '@/stores/agentStore';
 import { 
   Loader2, 
@@ -16,7 +17,7 @@ import {
 import { useState } from 'react';
 import type { AgentPhase } from '@ai-engine/core';
 
-const PHASE_INFO: Record<AgentPhase, { label: string; icon: React.ReactNode; color: string }> = {
+const PHASE_INFO: Record<AgentPhase, { label: string; icon: ReactNode; color: string }> = {
   idle: { label: 'Ready', icon: <Sparkles className="w-4 h-4" />, color: 'text-gray-400' },
   planning: { label: 'Planning', icon: <Lightbulb className="w-4 h-4" />, color: 'text-yellow-400' },
   coding: { label: 'Coding', icon: <FileCode2 className="w-4 h-4" />, color: 'text-blue-400' },

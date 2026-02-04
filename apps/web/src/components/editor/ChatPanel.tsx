@@ -52,6 +52,7 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
     setSelectedModel,
     files,
     applyGeneratedFiles,
+    addGeneratingFile,
     streamingContent,
     appendStreamingContent,
     setStreamingContent,
@@ -391,6 +392,8 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
                   appendStreamingContent(data.content);
                 } else if (data.type === 'file' && data.file) {
                   generatedFiles.push(data.file);
+                  // Apply file immediately so preview updates in real-time
+                  addGeneratingFile(data.file);
                 } else if (data.type === 'error') {
                   console.error('Stream error:', data.error);
                 }

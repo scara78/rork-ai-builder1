@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Loader2, RefreshCw, AlertCircle, FileCode2, Check } from 'lucide-react';
 import { Snack, SnackFiles, SnackDependencies } from 'snack-sdk';
 import { useProjectStore } from '@/stores/projectStore';
 
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
 `;
 
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
-  const { files } = useProjectStore();
+  const { files, isGenerating, generatingFiles, streamingContent } = useProjectStore();
 
   // Ref that the Snack SDK reads lazily via ref.current when posting messages to the iframe.
   const webPreviewRef = useRef<Window | null>(null);
@@ -206,14 +206,21 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       webPreviewRef.current = iframe.contentWindow;
     }
 
-    // NOW enable the Snack - the iframe is loaded and ref.current is set
-    if (snackRef.current) {
-      snackRef.current.setDisabled(false);
-      // Also enable online for QR code support (pubsub transport)
-      snackRef.current.setOnline(true);
-    }
-
-    setIsLoading(false);
+    // Delay enabling to allow the web player inside the iframe to initialize
+    // its postMessage listener. Without this, messages from the SDK are lost.
+    setTimeout(() => {
+      if (snackRef.current) {
+        snackRef.current.setDisabled(false);
+        snackRef.current.setOnline(true);
+        // Force send current code after enabling
+        setTimeout(() => {
+          if (snackRef.current) {
+            snackRef.current.sendCodeChanges();
+          }
+        }, 500);
+      }
+      setIsLoading(false);
+    }, 1000);
   }, []);
 
   const handleRefresh = useCallback(() => {
@@ -248,7 +255,12 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       <div className="absolute top-4 right-4 z-20">
         <div className="flex items-center bg-[#0a0a0a] border border-[#27272a] rounded-lg shadow-xl p-1 gap-1">
           <div className="flex items-center gap-2 px-2 py-1 border-r border-[#27272a] mr-1">
-            {isLoading ? (
+            {isGenerating ? (
+              <>
+                <Loader2 size={10} className="animate-spin text-blue-400" />
+                <span className="text-blue-400 font-medium text-[11px]">Building</span>
+              </>
+            ) : isLoading ? (
               <>
                 <Loader2 size={10} className="animate-spin text-yellow-400" />
                 <span className="text-yellow-400 font-medium text-[11px]">Loading</span>
@@ -300,12 +312,58 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
                 onLoad={handleIframeLoad}
                 className="w-full h-full border-0 bg-[#0a0a0a]"
                 title="Expo Snack Preview"
-                allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; payment; usb; xr-spatial-tracking"
+                allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; payment; usb; xr-spatial-tracking; screen-wake-lock"
                 sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
               />
             ) : null}
 
-            {(!webPreviewURL || isLoading) && (
+            {/* Building overlay - shown when AI is generating */}
+            {isGenerating && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm">
+                <div className="flex-1 flex flex-col items-center justify-center px-6">
+                  {/* Animated building indicator */}
+                  <div className="relative mb-5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+                      <FileCode2 className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 opacity-30 animate-ping" />
+                  </div>
+                  
+                  <p className="text-white font-semibold text-sm mb-1">Building your app</p>
+                  <p className="text-gray-500 text-xs mb-5">Rork is writing code...</p>
+                  
+                  {/* File list being generated */}
+                  {generatingFiles.length > 0 && (
+                    <div className="w-full max-w-[260px] space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {generatingFiles.map((filePath, i) => (
+                        <div 
+                          key={filePath}
+                          className="flex items-center gap-2 text-xs animate-fade-in"
+                        >
+                          <Check className="w-3 h-3 text-green-400 flex-shrink-0" />
+                          <span className="text-gray-300 truncate font-mono">{filePath}</span>
+                        </div>
+                      ))}
+                      {/* Pulsing indicator for "more coming" */}
+                      <div className="flex items-center gap-2 text-xs">
+                        <Loader2 className="w-3 h-3 text-blue-400 animate-spin flex-shrink-0" />
+                        <span className="text-gray-500">writing...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No files yet - show initial state */}
+                  {generatingFiles.length === 0 && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Analyzing your request...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {(!webPreviewURL || isLoading) && !isGenerating && (
               <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
                 <div className="text-center text-gray-500">
                   <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" />
