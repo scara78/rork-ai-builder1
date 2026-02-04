@@ -1,7 +1,7 @@
 'use client';
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Loader2, RefreshCw, AlertCircle, Globe } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { Snack, SnackFiles, SnackDependencies } from 'snack-sdk';
 import { useProjectStore } from '@/stores/projectStore';
 
@@ -287,29 +287,25 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
           
           {/* Preview Content */}
           <div className="absolute inset-0 pt-12 pb-8 bg-[#0a0a0a] overflow-hidden">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
+            {/* Always render iframe so Snack can connect via webPreviewRef */}
+            <iframe
+              ref={handleIframeRef}
+              src={webPreviewURL || 'about:blank'}
+              className={`w-full h-full border-0 bg-[#0a0a0a] ${!webPreviewURL ? 'invisible' : ''}`}
+              title="Expo Snack Preview"
+              allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; payment; usb; xr-spatial-tracking"
+              sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+            />
+            
+            {/* Loading overlay */}
+            {(!webPreviewURL || isLoading) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
                 <div className="text-center text-gray-500">
                   <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" />
-                  <p className="text-sm font-medium">Starting...</p>
+                  <p className="text-sm font-medium">
+                    {webPreviewURL ? 'Loading preview...' : 'Connecting to Expo...'}
+                  </p>
                   <p className="text-xs mt-1">This may take a moment</p>
-                </div>
-              </div>
-            ) : webPreviewURL ? (
-              <iframe
-                ref={handleIframeRef}
-                src={webPreviewURL}
-                className="w-full h-full border-0 bg-[#0a0a0a]"
-                title="Expo Snack Preview"
-                allow="accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; hid; microphone; midi; payment; usb; vr; xr-spatial-tracking"
-                sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-gray-500">
-                  <Globe className="w-8 h-8 mx-auto mb-4 opacity-50" />
-                  <p className="text-sm font-medium">Connecting...</p>
-                  <p className="text-xs mt-1">Preparing preview</p>
                 </div>
               </div>
             )}
