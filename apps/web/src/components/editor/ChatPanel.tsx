@@ -608,40 +608,44 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
                   onClick={() => setShowModelMenu(!showModelMenu)}
                   className="flex items-center gap-1.5 bg-[#27272a] pl-2 pr-2 py-0.5 rounded-full text-gray-300 border border-[#3f3f46] hover:border-gray-500 transition-colors"
                 >
-                  <Sparkles className="w-3 h-3 text-blue-400" />
+                  {selectedModel === 'gemini' ? (
+                    <Sparkles className="w-3 h-3 text-blue-400" />
+                  ) : (
+                    <Bot className="w-3 h-3 text-purple-400" />
+                  )}
                   <span className="font-semibold text-[11px]">
-                    {selectedModel === 'claude' ? 'Claude' : 'Gemini'}
+                    {selectedModel === 'gemini' ? 'Gemini 3 Pro' : 'Claude Sonnet 4'}
                   </span>
                   <ChevronDown size={10} className="text-gray-500" />
                 </button>
                 
                 {showModelMenu && (
-                  <div className="absolute bottom-full left-0 mb-1 w-44 bg-[#18181b] border border-[#3f3f46] rounded-lg shadow-xl z-50 overflow-hidden">
+                  <div className="absolute bottom-full left-0 mb-1 w-56 bg-[#18181b] border border-[#3f3f46] rounded-lg shadow-xl z-50 overflow-hidden">
                     <button
                       onClick={() => { setSelectedModel('gemini'); setShowModelMenu(false); }}
-                      className={`w-full px-3 py-2 flex items-center gap-2 text-left text-xs hover:bg-[#27272a] transition-colors ${
-                        selectedModel === 'gemini' ? 'text-blue-400' : 'text-gray-300'
+                      className={`w-full px-3 py-2.5 flex items-center gap-2.5 text-left text-xs hover:bg-[#27272a] transition-colors ${
+                        selectedModel === 'gemini' ? 'bg-[#27272a]/50' : ''
                       }`}
                     >
-                      <Sparkles size={12} className="text-blue-400" />
-                      <div>
-                        <div className="font-medium">Gemini</div>
-                        <div className="text-[10px] text-gray-500">Fast, large context</div>
+                      <Sparkles size={14} className="text-blue-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium ${selectedModel === 'gemini' ? 'text-blue-400' : 'text-gray-200'}`}>Gemini 3 Pro</div>
+                        <div className="text-[10px] text-gray-500">gemini-3-pro-preview</div>
                       </div>
-                      {selectedModel === 'gemini' && <span className="ml-auto text-blue-400">&#10003;</span>}
+                      {selectedModel === 'gemini' && <span className="text-blue-400 text-sm">&#10003;</span>}
                     </button>
                     <button
                       onClick={() => { setSelectedModel('claude'); setShowModelMenu(false); }}
-                      className={`w-full px-3 py-2 flex items-center gap-2 text-left text-xs hover:bg-[#27272a] transition-colors border-t border-[#27272a] ${
-                        selectedModel === 'claude' ? 'text-purple-400' : 'text-gray-300'
+                      className={`w-full px-3 py-2.5 flex items-center gap-2.5 text-left text-xs hover:bg-[#27272a] transition-colors border-t border-[#27272a] ${
+                        selectedModel === 'claude' ? 'bg-[#27272a]/50' : ''
                       }`}
                     >
-                      <Bot size={12} className="text-purple-400" />
-                      <div>
-                        <div className="font-medium">Claude</div>
-                        <div className="text-[10px] text-gray-500">Precise, detailed code</div>
+                      <Bot size={14} className="text-purple-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium ${selectedModel === 'claude' ? 'text-purple-400' : 'text-gray-200'}`}>Claude Sonnet 4</div>
+                        <div className="text-[10px] text-gray-500">claude-sonnet-4-20250514</div>
                       </div>
-                      {selectedModel === 'claude' && <span className="ml-auto text-purple-400">&#10003;</span>}
+                      {selectedModel === 'claude' && <span className="text-purple-400 text-sm">&#10003;</span>}
                     </button>
                   </div>
                 )}
