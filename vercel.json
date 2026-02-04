@@ -1,20 +1,3 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "buildCommand": "cd ../.. && pnpm build --filter=web",
-  "outputDirectory": ".next",
-  "installCommand": "cd ../.. && pnpm install",
-  "rootDirectory": "apps/web",
-  "regions": ["iad1"],
-  "functions": {
-    "src/app/api/agent/run/route.ts": {
-      "maxDuration": 300
-    },
-    "src/app/api/generate/stream/route.ts": {
-      "maxDuration": 60
-    },
-    "src/app/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  }
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }

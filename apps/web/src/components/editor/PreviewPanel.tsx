@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Monitor, ChevronDown } from 'lucide-react';
+import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet } from 'lucide-react';
 import { Snack, SnackFiles, SnackDependencies, type SDKVersion } from 'snack-sdk';
 import { useProjectStore } from '@/stores/projectStore';
 
@@ -114,6 +114,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
+  const iframeElRef = useRef<HTMLIFrameElement | null>(null);
 
   // Buffer to capture CONNECT messages from iframe that arrive before
   // the Snack transport starts listening.
@@ -181,11 +182,15 @@ import 'expo-router/entry';
     // before the Snack transport is ready.
     const earlyListener = (event: MessageEvent) => {
       if (transportStartedRef.current) return; // Transport already handles it
-      // Only capture messages from the S3 web player origin
-      if (webPlayerOriginRef.current && event.origin === webPlayerOriginRef.current) {
+      // Capture messages from S3 origins (web player) or same origin
+      const origin = event.origin || '';
+      const isSnackOrigin = origin.includes('snack-web-player') || 
+        (webPlayerOriginRef.current && origin === webPlayerOriginRef.current);
+      if (isSnackOrigin) {
         try {
-          const data = JSON.parse(event.data);
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
           if (data.type === 'CONNECT' || data.type === 'MESSAGE') {
+            console.log('[Snack] Early capture:', data.type, 'from', origin);
             earlyMessagesRef.current.push(event);
           }
         } catch { /* not JSON, ignore */ }
@@ -211,9 +216,11 @@ import 'expo-router/entry';
       const initialState = snack.getState();
       if (initialState.webPreviewURL) {
         setWebPreviewURL(initialState.webPreviewURL);
+        console.log('[Snack] Web preview URL:', initialState.webPreviewURL);
         // Extract the S3 origin so we can filter early messages
         try {
           webPlayerOriginRef.current = new URL(initialState.webPreviewURL).origin;
+          console.log('[Snack] Web player origin:', webPlayerOriginRef.current);
         } catch { /* ignore */ }
       }
       if (initialState.url) {
@@ -266,6 +273,7 @@ import 'expo-router/entry';
   }, [dependencies]);
 
   const handleIframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
+    iframeElRef.current = iframe;
     webPreviewRef.current = iframe?.contentWindow ?? null;
   }, []);
 
@@ -275,12 +283,14 @@ import 'expo-router/entry';
   //   3. Replay any CONNECT messages captured by our early listener
   //   4. If still no connection after a grace period, force-reload the iframe
   const handleIframeLoad = useCallback(() => {
-    const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
+    const iframe = iframeElRef.current;
     if (iframe?.contentWindow) {
       webPreviewRef.current = iframe.contentWindow;
     }
 
     if (!snackRef.current) return;
+
+    console.log('[Snack] iframe loaded, enabling transport...');
 
     // Enable transport immediately (no artificial delay).
     // The transport calls window.addEventListener('message', handler).
@@ -291,6 +301,7 @@ import 'expo-router/entry';
     // Replay any CONNECT messages that arrived before the transport started.
     // We re-dispatch them on the window so the transport's own listener picks them up.
     if (earlyMessagesRef.current.length > 0) {
+      console.log('[Snack] Replaying', earlyMessagesRef.current.length, 'early messages');
       for (const captured of earlyMessagesRef.current) {
         window.dispatchEvent(new MessageEvent('message', {
           data: captured.data,
@@ -301,21 +312,18 @@ import 'expo-router/entry';
       earlyMessagesRef.current = [];
     }
 
-    // Grace period: if no connected clients after 2s, the web player may
+    // Grace period: if no connected clients after 2.5s, the web player may
     // have sent CONNECT even before our early listener was ready (very fast load).
     // In that case, reload the iframe to force a fresh CONNECT.
     setTimeout(() => {
       if (!snackRef.current) return;
       const state = snackRef.current.getState();
       const hasClients = Object.keys(state.connectedClients || {}).length > 0;
+      console.log('[Snack] Grace check: hasClients =', hasClients);
 
-      if (!hasClients) {
-        // Force the web player to reconnect by reloading the iframe
-        const iframeEl = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
-        if (iframeEl && iframeEl.contentWindow) {
-          // Nudge via contentWindow reload — triggers a fresh CONNECT
-          try { iframeEl.contentWindow.location.reload(); } catch { /* cross-origin, ignore */ }
-        }
+      if (!hasClients && iframeElRef.current?.contentWindow) {
+        console.log('[Snack] No clients after grace period, reloading iframe');
+        try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin, ignore */ }
       }
     }, 2500);
 
@@ -325,12 +333,11 @@ import 'expo-router/entry';
   const handleRefresh = useCallback(() => {
     if (snackRef.current) {
       setIsLoading(true);
+      transportStartedRef.current = false;
+      earlyMessagesRef.current = [];
       // Reload iframe to get a fresh CONNECT + code push cycle
-      const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Expo Snack Preview"]');
-      if (iframe) {
-        transportStartedRef.current = false;
-        earlyMessagesRef.current = [];
-        try { iframe.contentWindow?.location.reload(); } catch { /* cross-origin */ }
+      if (iframeElRef.current?.contentWindow) {
+        try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
       }
       setTimeout(() => setIsLoading(false), 3000);
     }
@@ -355,78 +362,56 @@ import 'expo-router/entry';
   }
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#202023]">
-      {/* Controls - floating badge with device icons */}
-      <div className="absolute top-4 right-4 z-20">
-        <div className="flex items-center bg-[#0a0a0a]/80 backdrop-blur-md border border-[#3f3f46]/50 rounded-full shadow-2xl px-3 py-1.5 gap-2.5">
+    <div className="h-full w-full flex flex-col bg-[#1a1a1d]">
+      {/* Top bar with status + controls */}
+      <div className="h-10 flex items-center justify-between px-3 border-b border-[#27272a] bg-[#0f0f11] flex-shrink-0">
+        <div className="flex items-center gap-2">
+          {/* Status */}
+          {isGenerating ? (
+            <div className="flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin text-blue-400" />
+              <span className="text-blue-400 font-medium text-xs">Building</span>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin text-yellow-400" />
+              <span className="text-yellow-400 font-medium text-xs">Loading</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </div>
+              <span className="text-green-400 font-medium text-xs">Live</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
           {/* Refresh */}
           <button
             onClick={handleRefresh}
-            className="p-1 text-gray-400 hover:text-white transition-colors"
+            className="p-1.5 text-gray-500 hover:text-white transition-colors rounded-md hover:bg-white/5"
             title="Refresh preview"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
           </button>
-          
-          {/* Status badge */}
-          {isGenerating ? (
-            <div className="flex items-center gap-2">
-              <Loader2 size={12} className="animate-spin text-blue-400" />
-              <span className="text-blue-400 font-semibold text-xs">Building</span>
-            </div>
-          ) : isLoading ? (
-            <div className="flex items-center gap-2">
-              <Loader2 size={12} className="animate-spin text-yellow-400" />
-              <span className="text-yellow-400 font-semibold text-xs">Loading</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
-              </div>
-              <span className="text-green-400 font-semibold text-xs">Live</span>
-              <ChevronDown size={12} className="text-green-400/70" />
-            </div>
-          )}
-          
-          <div className="w-px h-4 bg-[#3f3f46]" />
-          
           {/* Device type icons */}
-          <div className="flex items-center gap-1.5">
-            <button className="p-1 text-white bg-white/10 rounded-md" title="Phone">
-              <Smartphone size={14} />
-            </button>
-            <button className="p-1 text-gray-500 hover:text-gray-300 transition-colors" title="Tablet">
-              <Tablet size={14} />
-            </button>
-            <button className="p-1 text-gray-500 hover:text-gray-300 transition-colors" title="Desktop">
-              <Monitor size={14} />
-            </button>
-          </div>
+          <button className="p-1.5 text-white bg-white/10 rounded-md" title="Phone">
+            <Smartphone size={13} />
+          </button>
+          <button className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors rounded-md hover:bg-white/5" title="Tablet">
+            <Tablet size={13} />
+          </button>
         </div>
       </div>
 
       {/* Preview Area */}
       <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:24px_24px]" />
-
-        {/* Phone Frame */}
-        <div className="relative w-[375px] h-[812px] bg-black rounded-[50px] border-[8px] border-[#2a2a2a] shadow-[0_0_60px_-15px_rgba(0,0,0,0.4),0_25px_50px_-12px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/10 z-10 scale-[0.75] origin-center">
-          <div className="absolute top-[11px] left-1/2 transform -translate-x-1/2 w-[100px] h-[30px] bg-black rounded-[20px] z-50" />
-          <div className="absolute top-0 w-full h-12 z-40 flex justify-between items-end px-6 pb-2">
-            <div className="text-white text-[13px] font-semibold pl-2">9:41</div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-6 h-2.5 rounded-[3px] border border-white/30 relative p-[1px]">
-                <div className="bg-white w-full h-full rounded-[1px]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="absolute inset-0 pt-12 pb-8 bg-[#0a0a0a] overflow-hidden">
-            {/* Always render iframe when URL is available. 
-                The Snack starts disabled, iframe loads the runtime,
-                then onLoad enables the Snack so transport can communicate. */}
+        {/* Phone Frame - thin, clean, no fake notch/status bar */}
+        <div className="relative w-[320px] h-[693px] bg-black rounded-[40px] border-[3px] border-[#333] shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-10">
+          <div className="absolute inset-0 bg-[#0a0a0a] overflow-hidden rounded-[37px]">
             {webPreviewURL ? (
               <iframe
                 ref={handleIframeRef}
@@ -439,11 +424,10 @@ import 'expo-router/entry';
               />
             ) : null}
 
-            {/* Building overlay - shown when AI is generating */}
+            {/* Building overlay */}
             {isGenerating && (
               <div className="absolute inset-0 z-30 flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm">
                 <div className="flex-1 flex flex-col items-center justify-center px-6">
-                  {/* Animated building indicator */}
                   <div className="relative mb-5">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
                       <FileCode2 className="w-6 h-6 text-white" />
@@ -454,10 +438,9 @@ import 'expo-router/entry';
                   <p className="text-white font-semibold text-sm mb-1">Building your app</p>
                   <p className="text-gray-500 text-xs mb-5">Rork is writing code...</p>
                   
-                  {/* File list being generated */}
                   {generatingFiles.length > 0 && (
-                    <div className="w-full max-w-[260px] space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar">
-                      {generatingFiles.map((filePath, i) => (
+                    <div className="w-full max-w-[240px] space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar">
+                      {generatingFiles.map((filePath) => (
                         <div 
                           key={filePath}
                           className="flex items-center gap-2 text-xs animate-fade-in"
@@ -466,7 +449,6 @@ import 'expo-router/entry';
                           <span className="text-gray-300 truncate font-mono">{filePath}</span>
                         </div>
                       ))}
-                      {/* Pulsing indicator for "more coming" */}
                       <div className="flex items-center gap-2 text-xs">
                         <Loader2 className="w-3 h-3 text-blue-400 animate-spin flex-shrink-0" />
                         <span className="text-gray-500">writing...</span>
@@ -474,7 +456,6 @@ import 'expo-router/entry';
                     </div>
                   )}
 
-                  {/* No files yet - show initial state */}
                   {generatingFiles.length === 0 && (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -497,8 +478,6 @@ import 'expo-router/entry';
               </div>
             )}
           </div>
-
-          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-[130px] h-[5px] bg-white/90 rounded-full z-50" />
         </div>
       </div>
     </div>
