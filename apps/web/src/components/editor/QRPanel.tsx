@@ -22,7 +22,6 @@ export function QRPanel({ expoURL, connectedDevices = 0, onShowCode }: QRPanelPr
             <h2 className="text-xl font-bold text-white">
               Test on your phone
             </h2>
-            <p className="text-sm text-gray-500 mt-1">Scan QR code to test</p>
           </div>
           <button
             onClick={() => setIsExpanded(!isExpanded)}

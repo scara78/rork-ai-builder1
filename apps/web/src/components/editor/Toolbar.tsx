@@ -145,29 +145,29 @@ export function Toolbar({ projectId, onSave, onExport, viewMode = 'preview', onV
   
   return (
     <>
-      <div className="h-14 border-b border-[#27272a] flex items-center justify-between px-4 bg-[#0a0a0a]">
+      <div className="h-14 border-b border-[#27272a] flex items-center px-4 bg-[#0a0a0a] relative">
         {/* Left Side */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Back arrow */}
           <Link 
             href="/dashboard"
-            className="p-2 hover:bg-[#27272a] rounded-lg text-gray-400 hover:text-white transition-colors"
+            className="p-1.5 hover:bg-[#27272a] rounded-lg text-gray-400 hover:text-white transition-colors"
           >
             <ChevronLeft size={20} />
           </Link>
           
           {/* Project Name + Lock + Dropdown */}
-          <button className="flex items-center gap-2 hover:bg-[#27272a] px-3 py-1.5 rounded-lg transition-colors max-w-[240px]">
-            <span className="font-bold text-white truncate text-base">
+          <button className="flex items-center gap-2 hover:bg-[#27272a] px-2.5 py-1.5 rounded-lg transition-colors max-w-[200px]">
+            <span className="font-bold text-white truncate text-[15px]">
               {projectName || 'Untitled Project'}
             </span>
             <Lock size={12} className="text-gray-500 flex-shrink-0" />
             <ChevronDown size={14} className="text-gray-500 flex-shrink-0" />
           </button>
-          
-          <div className="h-6 w-px bg-[#27272a]" />
-          
-          {/* Code / Preview pill toggle -- giống rork.app */}
+        </div>
+        
+        {/* Center - Code / Preview pill toggle */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <div className="flex items-center bg-[#18181b] rounded-lg p-1 border border-[#27272a]">
             <button 
               onClick={() => onViewModeChange?.('code')}
@@ -194,8 +194,8 @@ export function Toolbar({ projectId, onSave, onExport, viewMode = 'preview', onV
           </div>
         </div>
         
-        {/* Right Side -- tinh gọn giống rork.app */}
-        <div className="flex items-center gap-3">
+        {/* Right Side */}
+        <div className="flex items-center gap-3 ml-auto">
           {/* Save (chỉ hiện khi có thay đổi) */}
           {onSave && hasDirtyFiles && (
             <button 
@@ -262,7 +262,7 @@ export function Toolbar({ projectId, onSave, onExport, viewMode = 'preview', onV
           
           {/* User Avatar */}
           <Link href="/dashboard/settings">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-orange-500 border-2 border-white/10 cursor-pointer hover:ring-2 hover:ring-purple-500/50 transition-all" />
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-500 to-orange-500 border-2 border-white/10 cursor-pointer hover:ring-2 hover:ring-purple-500/50 transition-all" />
           </Link>
         </div>
       </div>

@@ -251,7 +251,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 
   if (error) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#1a1a1e]">
+      <div className="h-full w-full flex items-center justify-center bg-[#242428]">
         <div className="text-center p-4">
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
           <p className="text-red-400 text-sm mb-2">Preview Error</p>
@@ -325,7 +325,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:24px_24px]" />
 
         {/* Phone Frame */}
-        <div className="relative w-[375px] h-[812px] bg-black rounded-[50px] border-[8px] border-[#1a1a1a] shadow-[0_0_80px_-20px_rgba(0,0,0,0.5),0_30px_60px_-10px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10 z-10 scale-[0.85] origin-center">
+        <div className="relative w-[375px] h-[812px] bg-black rounded-[50px] border-[8px] border-[#2a2a2a] shadow-[0_0_60px_-15px_rgba(0,0,0,0.4),0_25px_50px_-12px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/10 z-10 scale-[0.75] origin-center">
           <div className="absolute top-[11px] left-1/2 transform -translate-x-1/2 w-[100px] h-[30px] bg-black rounded-[20px] z-50" />
           <div className="absolute top-0 w-full h-12 z-40 flex justify-between items-end px-6 pb-2">
             <div className="text-white text-[13px] font-semibold pl-2">9:41</div>
