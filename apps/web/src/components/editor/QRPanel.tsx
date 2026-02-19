@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Smartphone, AlertCircle, ChevronDown, ChevronUp, Share2, Code } from 'lucide-react';
+import { Smartphone, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface QRPanelProps {

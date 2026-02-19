@@ -188,7 +188,7 @@ export default function DemoPage() {
   const [loading] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   
-  const { setProject, files } = useProjectStore();
+  const { setProject } = useProjectStore();
   const { showToast } = useToast();
 
   // Initialize demo project

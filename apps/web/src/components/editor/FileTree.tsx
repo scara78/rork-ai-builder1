@@ -6,12 +6,9 @@ import {
   ChevronDown, 
   File, 
   Folder, 
-  Plus, 
   Trash2, 
   FolderPlus,
   FilePlus,
-  X,
-  Check
 } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 

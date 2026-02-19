@@ -133,9 +133,9 @@ export default function EditorPage() {
         const { project, files: projectFiles, messages: dbMessages } = await projectRes.json();
         
         // Convert files to editor format
-        const files: Record<string, EditorFile> = {};
+        const loadedFiles: Record<string, EditorFile> = {};
         projectFiles.forEach((f: { path: string; content: string; language: string }) => {
-          files[f.path] = {
+          loadedFiles[f.path] = {
             path: f.path,
             content: f.content,
             language: f.language,
@@ -157,7 +157,7 @@ export default function EditorPage() {
           timestamp: new Date(m.created_at),
         }));
         
-        setProject(projectId, project.name, files, messages);
+        setProject(projectId, project.name, loadedFiles, messages);
         
       } catch (err) {
         setError('Failed to load project');

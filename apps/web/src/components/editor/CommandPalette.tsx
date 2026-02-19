@@ -10,13 +10,7 @@ import {
   Play, 
   Save,
   FolderOpen,
-  MessageSquare,
-  Code,
-  Moon,
-  Sun,
-  Trash2,
   RefreshCw,
-  ExternalLink
 } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 
@@ -54,7 +48,7 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   
-  const { files, setActiveFile, activeFile } = useProjectStore();
+  const { files, setActiveFile } = useProjectStore();
 
   // Build commands list
   const commands = useMemo<Command[]>(() => {
