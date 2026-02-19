@@ -40,25 +40,26 @@ function transformFilesToSnack(files: Record<string, { path: string; content: st
   return snackFiles;
 }
 
+// Only declare dependencies that are preloaded/bundled in the Snack web player for SDK 54.
+// Non-preloaded deps (expo-image, expo-blur, expo-av, expo-camera, expo-haptics, etc.)
+// cause State.isBusy() to remain true while the snackager resolver fetches their bundles.
+// isBusy() blocks ALL code pushes to the web player — resulting in a permanent
+// "Connecting..." state if any dep fails to resolve.
+// Non-preloaded deps will be added dynamically from the AI-generated package.json.
+const PRELOADED_DEPS: SnackDependencies = {
+  'expo-router': { version: '*' },
+  '@expo/vector-icons': { version: '*' },
+  'react-native-safe-area-context': { version: '*' },
+  'react-native-reanimated': { version: '*' },
+  '@react-native-async-storage/async-storage': { version: '*' },
+};
+
 function extractDependencies(files: Record<string, { path: string; content: string }>): SnackDependencies {
   const packageFile = Object.values(files).find(f =>
     f.path === 'package.json' || f.path === '/package.json'
   );
-  const deps: SnackDependencies = {
-    'expo-router': { version: '*' },
-    'expo-status-bar': { version: '*' },
-    'expo-linear-gradient': { version: '*' },
-    'expo-blur': { version: '*' },
-    'expo-haptics': { version: '*' },
-    '@expo/vector-icons': { version: '*' },
-    'expo-image': { version: '*' },
-    'expo-av': { version: '*' },
-    'expo-camera': { version: '*' },
-    'expo-image-picker': { version: '*' },
-    'react-native-safe-area-context': { version: '*' },
-    'react-native-reanimated': { version: '*' },
-    '@react-native-async-storage/async-storage': { version: '*' },
-  };
+  // Start with only preloaded deps — avoids isBusy() blocking the initial connection
+  const deps: SnackDependencies = { ...PRELOADED_DEPS };
   if (packageFile) {
     try {
       const pkg = JSON.parse(packageFile.content);
@@ -286,17 +287,17 @@ import 'expo-router/entry';
       (p) => p.startsWith('app/') && (p.endsWith('.tsx') || p.endsWith('.js') || p.endsWith('.ts'))
     );
 
-    // Transition: empty → has real files while transport already running
-    // (happens on reload: files load from DB after iframe is already connected)
+    // Transition: empty → has real files while transport already running.
+    // (Happens on page reload: files load from DB after iframe is already connected.)
+    // Reload the iframe so Expo Router re-bootstraps with the new file tree.
+    // Do NOT set transportStartedRef = false here — that would cause all subsequent
+    // sendCodeChanges() calls to be skipped (the ref gates the push below).
     if (hasExpoRouterFiles && !hadRealFilesRef.current && transportStartedRef.current) {
       hadRealFilesRef.current = true;
-      // Force a fresh connection cycle so the web player gets the new files
-      transportStartedRef.current = false;
-      earlyMessagesRef.current = [];
       if (iframeElRef.current?.contentWindow) {
         try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
       }
-      return;
+      // Fall through — still push code changes so the web player gets the latest files
     }
 
     if (hasExpoRouterFiles) hadRealFilesRef.current = true;
@@ -360,6 +361,18 @@ import 'expo-router/entry';
       }
       earlyMessagesRef.current = [];
     }
+
+    // Force a code push after the transport connects (or reconnects after a reload).
+    // This ensures the web player always receives the latest files after each iframe load,
+    // including the case where isBusy() was previously blocking code delivery.
+    setTimeout(() => {
+      if (!snackRef.current) return;
+      try {
+        // @ts-ignore — sendCodeChanges is public but not in type stubs
+        snackRef.current.sendCodeChanges?.();
+        console.log('[Snack] Post-load code push triggered');
+      } catch { /* ignore */ }
+    }, 500);
 
     // Grace period: if no connected clients after 2.5s, the web player may
     // have sent CONNECT even before our early listener was ready (very fast load).
