@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Mail, Lock, User, Loader2 } from 'lucide-react';
+import { Mail, Lock, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 function OAuthButton({ provider, onClick }: { provider: 'google' | 'github'; onClick: () => void }) {
@@ -33,7 +33,6 @@ function OAuthButton({ provider, onClick }: { provider: 'google' | 'github'; onC
 }
 
 export default function SignupPage() {
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,7 +48,7 @@ export default function SignupPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name } },
+        options: { data: { full_name: email.split('@')[0] } },
       });
       if (error) {
         setError(error.message);
@@ -108,21 +107,6 @@ export default function SignupPage() {
 
       <form onSubmit={handleSignup} className="space-y-4">
         {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>}
-
-        <label className="block space-y-1.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Name</span>
-          <span className="relative block">
-            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              className="w-full rounded-xl border border-border bg-secondary py-3 pl-10 pr-3 text-sm outline-none transition-colors placeholder:text-zinc-500 focus:border-zinc-500"
-              required
-            />
-          </span>
-        </label>
 
         <label className="block space-y-1.5">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</span>
