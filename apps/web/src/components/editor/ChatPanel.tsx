@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, ChevronDown, ChevronRight, Sparkles, FileCode, Code, AlertCircle, Mic, NotebookPen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useProjectStore } from '@/stores/projectStore';
@@ -27,7 +27,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
   const [input, setInput] = useState('');
   const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({}); // Per-message file list collapse
   const [showErrorDetails, setShowErrorDetails] = useState(false); // Error details expand
-  const [hasConsumedInitialPrompt, setHasConsumedInitialPrompt] = useState(false);
+  const initialPromptConsumedRef = useRef(false);
+  const handleAgentRunRef = useRef<(prompt?: string) => Promise<void>>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -59,7 +60,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
   }, [messages, streamingContent]);
 
   // Run Agent mode
-  const handleAgentRun = useCallback(async (overridePrompt?: string) => {
+  const handleAgentRun = async (overridePrompt?: string) => {
     const promptText = overridePrompt || input.trim();
     if (!promptText || isAgentRunning) return;
     
@@ -94,7 +95,13 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
       });
       
       if (!response.ok) {
-        throw new Error('Agent run failed');
+        // Try to read the error from the response body
+        let errorMsg = `Agent run failed (${response.status})`;
+        try {
+          const errData = await response.json();
+          if (errData.error) errorMsg = errData.error;
+        } catch { /* body not JSON */ }
+        throw new Error(errorMsg);
       }
       
       const reader = response.body?.getReader();
@@ -162,26 +169,30 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
       }
       
     } catch (error) {
-      console.error('Agent error:', error);
-      updateLastMessage('Sorry, an error occurred during agent run. Please try again.');
-      processEvent({ type: 'error', error: 'Agent run failed' });
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Agent error:', errMsg);
+      updateLastMessage(`Error: ${errMsg}\n\nPlease check your API key configuration and try again.`);
+      processEvent({ type: 'error', error: errMsg });
     } finally {
       stopAgent();
       setStreamingContent('');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAgentRunning, files, projectId, selectedModel]);
+  };
 
-  // Auto-send initial prompt from landing page
+  // Keep ref always pointing to latest handleAgentRun (avoids stale closures in effects)
+  handleAgentRunRef.current = handleAgentRun;
+
+  // Auto-send initial prompt from landing page.
+  // Uses a ref so the timeout is never cancelled by handleAgentRun reference changes.
   useEffect(() => {
-    if (initialPrompt && !hasConsumedInitialPrompt && !isAgentRunning) {
-      setHasConsumedInitialPrompt(true);
+    if (initialPrompt && !initialPromptConsumedRef.current) {
+      initialPromptConsumedRef.current = true;
       const timer = setTimeout(() => {
-        handleAgentRun(initialPrompt);
-      }, 600);
+        handleAgentRunRef.current?.(initialPrompt);
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [initialPrompt, hasConsumedInitialPrompt, isAgentRunning, handleAgentRun]);
+  }, [initialPrompt]);
 
   const handleSend = async () => {
     await handleAgentRun();
