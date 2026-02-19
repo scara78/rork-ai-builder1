@@ -1,31 +1,24 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
-const inter = Inter({ subsets: ['latin'] });
-
 export const metadata: Metadata = {
-  title: 'Rork - AI Mobile App Builder',
-  description: 'Build mobile apps with AI using natural language',
-  keywords: ['mobile app', 'AI', 'react native', 'expo', 'no-code'],
+  title: 'Rork — AI Mobile App Builder',
+  description: 'Build mobile apps with AI. Describe your app in natural language, get production-ready React Native code instantly.',
+  keywords: ['mobile app builder', 'AI', 'react native', 'expo', 'no-code', 'low-code'],
   authors: [{ name: 'Rork' }],
   openGraph: {
-    title: 'Rork - AI Mobile App Builder',
-    description: 'Build mobile apps with AI using natural language',
+    title: 'Rork — AI Mobile App Builder',
+    description: 'Build mobile apps with AI. Describe your app in natural language, get production-ready React Native code instantly.',
     type: 'website',
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} bg-background text-foreground antialiased`}>
+      <body className="bg-background text-foreground antialiased font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>
