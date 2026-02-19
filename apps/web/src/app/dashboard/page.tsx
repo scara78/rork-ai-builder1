@@ -31,7 +31,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Link
             href="/demo"
-            className="group p-5 rounded-xl border border-border bg-card hover:border-border/60 hover:bg-card/80 transition-all"
+            className="group p-5 rounded-xl border border-border bg-card hover:border-foreground/10 hover:bg-secondary transition-all"
           >
             <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/25 flex items-center justify-center mb-3">
               <Sparkles className="w-4 h-4 text-violet-400" />
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
             <CreateProjectButton variant="secondary" />
           </div>
 
-          <div className="p-5 rounded-xl border border-dashed border-border bg-card/50 opacity-60">
+          <div className="p-5 rounded-xl border border-dashed border-border bg-secondary opacity-60">
             <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center mb-3">
               <Folder className="w-4 h-4 text-blue-400" />
             </div>
@@ -77,7 +77,7 @@ export default async function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-20 border border-dashed border-border rounded-2xl bg-card/30">
+        <div className="text-center py-20 border border-dashed border-border rounded-2xl bg-muted">
           <div className="w-12 h-12 rounded-xl bg-muted border border-border flex items-center justify-center mx-auto mb-4">
             <Folder className="w-6 h-6 text-muted-foreground" />
           </div>

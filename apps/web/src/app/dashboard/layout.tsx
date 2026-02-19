@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <div className="min-h-screen bg-background">
       {/* Top nav */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-border bg-background backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-13 flex items-center justify-between" style={{ height: '52px' }}>
           {/* Logo */}
           <Link href="/dashboard" className="flex items-center gap-2.5">

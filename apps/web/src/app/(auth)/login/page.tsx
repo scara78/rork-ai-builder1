@@ -27,7 +27,7 @@ function OAuthButton({ provider, onClick }: { provider: 'google' | 'github'; onC
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-muted border border-border rounded-lg text-sm font-medium hover:bg-accent hover:border-border/80 transition-colors"
+      className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-muted border border-border rounded-lg text-sm font-medium hover:bg-accent hover:border-foreground/20 transition-colors"
     >
       {logos[provider]}
       Continue with {provider.charAt(0).toUpperCase() + provider.slice(1)}

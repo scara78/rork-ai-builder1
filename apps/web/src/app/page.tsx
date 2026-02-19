@@ -6,7 +6,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background flex flex-col">
 
       {/* ── Nav ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-border bg-background backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 group">
             <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm">
@@ -126,7 +126,7 @@ export default function HomePage() {
                 </div>
               </div>
               {/* Preview phone */}
-              <div className="flex items-center justify-center bg-muted/50 p-4">
+              <div className="flex items-center justify-center bg-muted p-4">
                 <div className="w-[120px] h-[220px] rounded-[20px] border-2 border-border bg-background overflow-hidden shadow-xl relative">
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-border" />
                   <div className="mt-8 px-2 flex flex-col gap-2">
@@ -170,7 +170,7 @@ export default function HomePage() {
                 desc: 'Push to GitHub automatically. Trigger EAS builds for iOS & Android with one click.',
               },
             ].map(({ icon, color, bg, title, desc }) => (
-              <div key={title} className="p-6 rounded-xl border border-border bg-card hover:border-border/80 transition-colors">
+              <div key={title} className="p-6 rounded-xl border border-border bg-card hover:border-foreground/20 transition-colors">
                 <div className={`w-9 h-9 rounded-lg border flex items-center justify-center mb-4 ${bg} ${color}`}>
                   {icon}
                 </div>

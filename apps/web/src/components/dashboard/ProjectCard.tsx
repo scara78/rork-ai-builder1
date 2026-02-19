@@ -63,7 +63,7 @@ export function ProjectCard({ project }: { project: Project }) {
 
   return (
     <>
-      <div className="group relative bg-card border border-border rounded-xl hover:border-border/60 transition-all duration-150 overflow-hidden">
+      <div className="group relative bg-card border border-border rounded-xl hover:border-foreground/20 transition-all duration-150 overflow-hidden">
         <Link href={`/editor/${project.id}`} className="block p-5">
           {/* Icon */}
           <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center mb-4 text-white text-sm font-bold select-none`}>
@@ -81,7 +81,7 @@ export function ProjectCard({ project }: { project: Project }) {
           </p>
 
           {/* Timestamp */}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" />
             <span>{timeAgo(project.updated_at)}</span>
           </div>
@@ -110,7 +110,7 @@ export function ProjectCard({ project }: { project: Project }) {
               </Link>
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDeleteConfirm(true); setShowMenu(false); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-destructive hover:bg-red-500/10 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
@@ -142,7 +142,7 @@ export function ProjectCard({ project }: { project: Project }) {
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2 text-sm bg-destructive text-destructive-foreground rounded-lg font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {isDeleting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Deleting…</> : 'Delete'}
               </button>
