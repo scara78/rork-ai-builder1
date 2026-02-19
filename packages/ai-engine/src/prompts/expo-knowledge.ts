@@ -4,118 +4,172 @@
  * For SDK 54 (Expo Snack)
  */
 
-// From expo-app-design/skills/building-native-ui/SKILL.md
-// Filtered: removed NativeTabs, expo-symbols, formSheet detents, Link.Preview, gradients
-export const EXPO_UI_GUIDELINES = `## Expo UI Guidelines (from Expo Official Skills)
+// Consolidated UI guidelines (navigation details are in navigation.ts to avoid duplication)
+export const EXPO_UI_GUIDELINES = `## Common UI Patterns (Frequently Needed)
 
-### Code Style
-- Always use TypeScript
-- Use functional components with hooks  
-- Keep components focused and small
-- Use StyleSheet.create for all styles at the bottom of the file
-- Use Expo Router for all navigation
-- Use expo-image for images (not React Native Image)
-
-### Library Preferences
-- Navigation: expo-router (Tabs, Stack, Link)
-- Icons: @expo/vector-icons (Ionicons)
-- Images: expo-image
-- Audio/Video: expo-av
-- Blur effects: expo-blur (BlurView)
-- Haptics: expo-haptics
-- Safe areas: react-native-safe-area-context
-- Storage: @react-native-async-storage/async-storage
-- Animations: react-native-reanimated
-
-### Responsive Design
-- Use Dimensions or useWindowDimensions for screen-aware layouts
-- Use flex layouts (flex: 1, flexDirection, gap)
-- Use SafeAreaView or useSafeAreaInsets
-- Test on both small (iPhone SE) and large (iPhone Pro Max) screens
-
-### Navigation Patterns
-
-#### Tab Navigation
+### ActivityIndicator (Loading Spinner)
 \`\`\`typescript
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
-export default function TabLayout() {
+function LoadingScreen() {
   return (
-    <Tabs screenOptions={{
-      tabBarActiveTintColor: '#007AFF',
-      tabBarStyle: { backgroundColor: '#000' },
-    }}>
-      <Tabs.Screen name="index" options={{
-        title: 'Home',
-        tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="explore" options={{
-        title: 'Explore',
-        tabBarIcon: ({ color, size }) => <Ionicons name="compass" size={size} color={color} />,
-      }} />
-      <Tabs.Screen name="profile" options={{
-        title: 'Profile',
-        tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
-      }} />
-    </Tabs>
+    <View style={styles.center}>
+      <ActivityIndicator size="large" color="#007AFF" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
+});
+\`\`\`
+
+### Alert Dialogs
+\`\`\`typescript
+import { Alert } from 'react-native';
+
+// Simple alert
+Alert.alert('Title', 'Message');
+
+// Confirmation dialog
+Alert.alert(
+  'Delete Item',
+  'Are you sure you want to delete this?',
+  [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: () => handleDelete() },
+  ]
+);
+\`\`\`
+
+### StatusBar
+\`\`\`typescript
+import { StatusBar } from 'expo-status-bar';
+
+// In your root layout or screen
+<StatusBar style="light" />  // light text for dark backgrounds
+\`\`\`
+
+### LinearGradient
+\`\`\`typescript
+import { LinearGradient } from 'expo-linear-gradient';
+
+<LinearGradient
+  colors={['#4c669f', '#3b5998', '#192f6a']}
+  style={{ flex: 1, padding: 16 }}
+>
+  <Text style={{ color: '#fff' }}>Content on gradient</Text>
+</LinearGradient>
+\`\`\`
+
+### Pull-to-Refresh
+\`\`\`typescript
+import { FlatList, RefreshControl } from 'react-native';
+
+function RefreshableList() {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
+
+  return (
+    <FlatList
+      data={items}
+      renderItem={({ item }) => <ItemCard item={item} />}
+      keyExtractor={(item) => item.id}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+      }
+    />
   );
 }
 \`\`\`
 
-#### Stack Navigation
+### Opening URLs / Links
 \`\`\`typescript
-import { Stack } from 'expo-router';
+import { Linking } from 'react-native';
 
-export default function RootLayout() {
+// Open URL in browser
+Linking.openURL('https://example.com');
+
+// Open email
+Linking.openURL('mailto:support@example.com');
+
+// Open phone
+Linking.openURL('tel:+1234567890');
+\`\`\`
+
+### +not-found.tsx (404 Handler)
+\`\`\`typescript
+// app/+not-found.tsx
+import { View, Text, StyleSheet } from 'react-native';
+import { Link, Stack } from 'expo-router';
+
+export default function NotFoundScreen() {
   return (
-    <Stack screenOptions={{
-      headerStyle: { backgroundColor: '#000' },
-      headerTintColor: '#fff',
-    }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
+    <>
+      <Stack.Screen options={{ title: 'Not Found' }} />
+      <View style={styles.container}>
+        <Text style={styles.title}>Page not found</Text>
+        <Link href="/" style={styles.link}>
+          <Text style={styles.linkText}>Go to home</Text>
+        </Link>
+      </View>
+    </>
   );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a', padding: 20 },
+  title: { fontSize: 20, fontWeight: '600', color: '#fff', marginBottom: 16 },
+  link: { marginTop: 16 },
+  linkText: { fontSize: 16, color: '#007AFF' },
+});
+\`\`\`
+
+### ImagePicker
+\`\`\`typescript
+import * as ImagePicker from 'expo-image-picker';
+
+async function pickImage() {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 1,
+  });
+
+  if (!result.canceled) {
+    return result.assets[0].uri;
+  }
+  return null;
 }
 \`\`\`
 
-#### Modals
+### Simple State Management (React Context)
 \`\`\`typescript
-// In _layout.tsx - standard modal
-<Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+// context/AppContext.tsx
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-// Form sheet with detents (SDK 54+)
-<Stack.Screen name="sheet" options={{
-  presentation: 'formSheet',
-  sheetAllowedDetents: [0.5, 1.0],
-  sheetGrabberVisible: true,
-}} />
+interface AppState { theme: 'dark' | 'light'; }
+interface AppContextType { state: AppState; setTheme: (theme: 'dark' | 'light') => void; }
 
-// Navigate to modal/sheet
-import { useRouter } from 'expo-router';
-const router = useRouter();
-router.push('/modal');
-router.push('/sheet');
-\`\`\`
+const AppContext = createContext<AppContextType | undefined>(undefined);
 
-### Common Route Structure
-\`\`\`
-app/
-  _layout.tsx          -- Root Stack layout
-  (tabs)/
-    _layout.tsx        -- Tab layout
-    index.tsx          -- Home tab
-    explore.tsx        -- Explore tab  
-    profile.tsx        -- Profile tab
-  [id].tsx             -- Dynamic route
-  modal.tsx            -- Modal screen
-components/
-  ui/                  -- Reusable UI components
-  features/            -- Feature-specific components
-hooks/                 -- Custom hooks
-utils/                 -- Utility functions
-constants/             -- App constants (colors, etc.)
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AppState>({ theme: 'dark' });
+  const setTheme = (theme: 'dark' | 'light') => setState(prev => ({ ...prev, theme }));
+  return <AppContext.Provider value={{ state, setTheme }}>{children}</AppContext.Provider>;
+}
+
+export function useApp() {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp must be inside AppProvider');
+  return ctx;
+}
 \`\`\``;
 
 // From expo-app-design/skills/native-data-fetching/SKILL.md
@@ -296,61 +350,22 @@ function useStoredState<T>(key: string, defaultValue: T) {
 }
 \`\`\``;
 
-// From expo-app-design/references/controls.md (SDK 54 compatible)
-export const EXPO_CONTROLS = `## Native Controls (from Expo Official Skills)
+// Native controls (Switch, TextInput, Haptics) are covered in components.ts — no duplication needed
+export const EXPO_CONTROLS = `## Snack Package Allowlist
 
-### Switch
-\`\`\`typescript
-import { Switch } from 'react-native';
+These packages are available in Expo Snack SDK 54. Only import from this list:
+- react, react-native (core)
+- expo, expo-router, expo-status-bar
+- expo-image, expo-blur, expo-linear-gradient
+- expo-av (Audio, Video, ResizeMode)
+- expo-camera (CameraView, useCameraPermissions)
+- expo-image-picker
+- expo-haptics
+- expo-font
+- @expo/vector-icons (Ionicons, MaterialIcons, FontAwesome, Feather, MaterialCommunityIcons)
+- react-native-safe-area-context
+- react-native-reanimated
+- react-native-gesture-handler
+- @react-native-async-storage/async-storage
 
-<Switch
-  value={isEnabled}
-  onValueChange={setIsEnabled}
-  trackColor={{ false: '#3e3e3e', true: '#4CD964' }}
-  thumbColor="#fff"
-/>
-\`\`\`
-
-### TextInput
-\`\`\`typescript
-import { TextInput, StyleSheet } from 'react-native';
-
-<TextInput
-  style={styles.input}
-  value={text}
-  onChangeText={setText}
-  placeholder="Enter text..."
-  placeholderTextColor="#666"
-  autoCapitalize="none"
-  autoCorrect={false}
-/>
-
-const styles = StyleSheet.create({
-  input: {
-    backgroundColor: '#1c1c1e',
-    color: '#fff',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-  },
-});
-\`\`\`
-
-### Pressable with Feedback
-\`\`\`typescript
-import { Pressable, StyleSheet } from 'react-native';
-import * as Haptics from 'expo-haptics';
-
-<Pressable
-  onPress={() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    handlePress();
-  }}
-  style={({ pressed }) => [
-    styles.button,
-    pressed && { opacity: 0.7 },
-  ]}
->
-  <Text style={styles.buttonText}>Press me</Text>
-</Pressable>
-\`\`\``;
+Do NOT import packages outside this list unless the user explicitly requests them.`;

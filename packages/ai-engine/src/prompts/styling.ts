@@ -1,9 +1,9 @@
 /**
- * Expo Styling Rules (SDK 52 compatible)
+ * Expo Styling Rules (SDK 54 compatible)
  * StyleSheet.create, legacy shadows, safe areas
  */
 
-export const STYLING_RULES = `## Styling Rules (SDK 52)
+export const STYLING_RULES = `## Styling Rules (SDK 54)
 
 ### General Rules
 - Use **StyleSheet.create** for all styles (more reliable in Expo Snack)
@@ -18,7 +18,7 @@ export const STYLING_RULES = `## Styling Rules (SDK 52)
 - When padding a ScrollView, use \`contentContainerStyle\` padding instead of ScrollView padding
 
 ### Shadows
-Use React Native shadow styles (NOT CSS boxShadow - not supported in Expo Snack SDK 52):
+Use React Native shadow styles (NOT CSS boxShadow - not supported in Expo Snack SDK 54):
 
 \`\`\`tsx
 // CORRECT - React Native shadow styles

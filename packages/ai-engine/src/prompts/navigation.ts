@@ -1,9 +1,9 @@
 /**
- * Expo Router Navigation Patterns (SDK 52)
+ * Expo Router Navigation Patterns (SDK 54)
  * Tabs, Link, Stacks, Modals
  */
 
-export const NATIVE_TABS = `## Tabs Navigation (SDK 52)
+export const NATIVE_TABS = `## Tabs Navigation (SDK 54)
 
 Use Tabs from 'expo-router' for tab-based navigation:
 

@@ -1,11 +1,11 @@
 /**
- * Expo Component Patterns (SDK 52)
+ * Expo Component Patterns (SDK 54)
  * Ionicons, expo-image, expo-av, BlurView, Native Controls
  */
 
 export const SF_SYMBOLS = `## Icons (@expo/vector-icons - Ionicons)
 
-Use Ionicons from @expo/vector-icons for app icons. This is the standard icon library for Expo SDK 52.
+Use Ionicons from @expo/vector-icons for app icons. This is the standard icon library for Expo SDK 54.
 
 ### Basic Usage
 \`\`\`tsx

@@ -8,8 +8,7 @@ export const EXPO_SDK54_RULES = `## Expo SDK 54 Core Rules
 ### Library Preferences
 | Use This | NOT This |
 |----------|----------|
-| \`expo-symbols\` (SymbolView) | Ionicons for iOS-specific icons |
-| \`@expo/vector-icons\` (Ionicons) | For cross-platform icons |
+| \`@expo/vector-icons\` (Ionicons) | expo-symbols / SymbolView (not in Snack) |
 | \`expo-image\` | intrinsic \`<img>\` or RN Image |
 | \`expo-blur\` (BlurView) | Custom opacity overlays |
 | \`Platform.OS\` | \`process.env.EXPO_OS\` |
@@ -18,13 +17,14 @@ export const EXPO_SDK54_RULES = `## Expo SDK 54 Core Rules
 | \`useWindowDimensions\` | \`Dimensions.get()\` |
 | \`expo-av\` (Audio, Video) | \`expo-audio\` / \`expo-video\` (prefer expo-av for Snack stability) |
 | \`import { Stack, Tabs } from 'expo-router'\` | \`import { Stack } from 'expo-router/stack'\` |
-| Legacy shadow styles (shadowColor, elevation) | CSS \`boxShadow\` (use legacy for Snack compat) |
+| Legacy shadow styles (shadowColor, elevation) | CSS \`boxShadow\` (not supported in Snack) |
 
-### SDK 54 Features Available
-- formSheet presentation with detents: \`presentation: 'formSheet'\`, \`sheetAllowedDetents: [0.5, 1.0]\`
+### Available in Expo Snack SDK 54
 - Tabs from expo-router with full customization
-- expo-symbols for SF Symbols on iOS (with Ionicons fallback for Android)
 - expo-linear-gradient for gradient backgrounds
+- react-native-reanimated for animations
+- react-native-gesture-handler for gestures
+- presentation: 'modal' and 'transparentModal' for modals
 
 ### Project Structure Rules
 \`\`\`

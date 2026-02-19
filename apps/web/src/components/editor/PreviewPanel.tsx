@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet } from 'lucide-react';
+import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Sparkles } from 'lucide-react';
 import { Snack, SnackFiles, SnackDependencies, type SDKVersion } from 'snack-sdk';
 import { useProjectStore } from '@/stores/projectStore';
+import { useAgentStore } from '@/stores/agentStore';
 
 interface PreviewPanelProps {
   projectId: string;
@@ -110,7 +111,18 @@ const styles = StyleSheet.create({
 `;
 
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
-  const { files, isGenerating, generatingFiles, streamingContent } = useProjectStore();
+  const { files } = useProjectStore();
+  const { isRunning: isAgentRunning, files: agentFiles } = useAgentStore();
+
+  // Derive building state from the agent store (projectStore.isGenerating is never set by ChatPanel)
+  const isGenerating = isAgentRunning;
+  // Files the agent has created so far (for the building overlay progress list)
+  const generatingFiles = Object.keys(agentFiles).filter(
+    (p) => agentFiles[p].status === 'created' || agentFiles[p].status === 'updated'
+  );
+
+  // Determine if the project has real files (not just the default fallback)
+  const hasRealFiles = Object.keys(files).length > 0;
 
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
@@ -373,6 +385,11 @@ import 'expo-router/entry';
               <Loader2 size={12} className="animate-spin text-blue-400" />
               <span className="text-blue-400 font-medium text-xs">Building</span>
             </div>
+          ) : !hasRealFiles ? (
+            <div className="flex items-center gap-1.5">
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
+              <span className="text-gray-500 font-medium text-xs">Waiting</span>
+            </div>
           ) : isLoading ? (
             <div className="flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin text-yellow-400" />
@@ -481,12 +498,28 @@ import 'expo-router/entry';
 
             {(!webPreviewURL || isLoading) && !isGenerating && (
               <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
-                <div className="text-center text-gray-500">
-                  <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" />
-                  <p className="text-sm font-medium">
-                    {webPreviewURL ? 'Loading preview...' : 'Connecting to Expo...'}
-                  </p>
-                  <p className="text-xs mt-1">This may take a moment</p>
+                <div className="text-center text-gray-500 px-6">
+                  {!hasRealFiles ? (
+                    // No files yet — show "waiting for AI" state
+                    <>
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-600/20 flex items-center justify-center mx-auto mb-4 border border-white/5">
+                        <Sparkles className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-300">No app yet</p>
+                      <p className="text-xs mt-2 text-gray-500 leading-relaxed max-w-[200px] mx-auto">
+                        Describe what you want to build in the chat and Rork will generate it here.
+                      </p>
+                    </>
+                  ) : (
+                    // Has files but Snack SDK still loading
+                    <>
+                      <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" />
+                      <p className="text-sm font-medium">
+                        {webPreviewURL ? 'Loading preview...' : 'Connecting to Expo...'}
+                      </p>
+                      <p className="text-xs mt-1">This may take a moment</p>
+                    </>
+                  )}
                 </div>
               </div>
             )}

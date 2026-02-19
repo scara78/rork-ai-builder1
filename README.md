@@ -1,49 +1,70 @@
-# Rork AI Mobile App Builder Clone
+# Rork AI Mobile App Builder
 
-An AI-powered no-code platform for building React Native mobile apps from natural language descriptions.
+An AI-powered platform for building React Native mobile apps from natural language descriptions. Describe your app idea, and the AI agent autonomously generates a complete Expo project with live preview.
+
+## How It Works
+
+1. **Describe** your app on the landing page
+2. **Sign up** (email + password)
+3. **Watch** the AI agent build your app in real-time
+4. **Preview** on a phone simulator in the browser or scan a QR code for Expo Go
+5. **Edit** code directly in the built-in Monaco editor
+6. **Export** as ZIP, sync to GitHub, or build for app stores via EAS
 
 ## Features
 
-- **AI Code Generation**: Generate complete React Native/Expo code using Claude or Gemini
-- **Live Preview**: See changes instantly in the browser or on your device via Expo Go
-- **Monaco Editor**: Full-featured code editor with syntax highlighting
-- **File Management**: Create, edit, delete files with VS Code-like file tree
-- **Command Palette**: Quick access to all features with Cmd+K
+- **AI Agent**: Autonomous app builder using Gemini 2.0 Flash (default) or Claude with multi-turn tool loop
+- **Live Preview**: Expo Snack SDK renders your app in a phone-sized iframe — updates in real-time as files are generated
+- **Code Editor**: Monaco-based editor with syntax highlighting and file tree
+- **Command Palette**: Quick access to all features (`Cmd+K`)
 - **GitHub Sync**: Push your project to GitHub with one click
-- **Code Export**: Download your project as a ZIP file
-- **Settings Page**: Manage preferences, theme, and integrations
-- **Authentication**: Email/password and OAuth (Google, GitHub) via Supabase
+- **ZIP Export**: Download your complete Expo project
+- **EAS Build**: Generate build config for App Store / Play Store submission
+- **Auth**: Email/password via Supabase (OAuth Google/GitHub ready but not yet configured)
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
+- **Frontend**: Next.js 16 (Turbopack), React 19, TypeScript, Tailwind CSS v3
+- **Backend**: Next.js API Routes (SSE streaming for agent)
 - **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
-- **AI**: Claude (Anthropic), Gemini (Google)
-- **Preview**: Expo, WebSocket, Docker
-- **State Management**: Zustand with Immer
-- **Build System**: Turborepo, pnpm
+- **Auth**: Supabase Auth (SSR with proxy.ts)
+- **AI**: Gemini 2.0 Flash (default), Claude (optional)
+- **Preview**: Expo Snack SDK (in-browser, no separate server needed)
+- **State**: Zustand + Immer (projectStore, agentStore)
+- **Build System**: Turborepo, pnpm workspaces
 
 ## Project Structure
 
 ```
 rork-ai-builder/
 ├── apps/
-│   ├── web/                    # Next.js web application
-│   │   ├── src/
-│   │   │   ├── app/           # App Router pages & API routes
-│   │   │   ├── components/    # React components
-│   │   │   ├── hooks/         # Custom React hooks
-│   │   │   ├── lib/           # Utility libraries
-│   │   │   └── stores/        # Zustand state management
-│   │   └── ...
+│   └── web/                       # Next.js web application
+│       └── src/
+│           ├── app/               # App Router pages & API routes
+│           │   ├── api/agent/     # AI agent SSE endpoint
+│           │   ├── api/projects/  # Project CRUD + files + export
+│           │   ├── (auth)/        # Login, signup
+│           │   ├── dashboard/     # Projects list, settings
+│           │   └── editor/        # Main editor page
+│           ├── components/
+│           │   ├── editor/        # ChatPanel, PreviewPanel, CodePanel, FileTree, etc.
+│           │   ├── landing/       # HeroPromptBox
+│           │   └── dashboard/     # ProjectCard, PendingPromptHandler
+│           ├── stores/            # Zustand stores (projectStore, agentStore)
+│           ├── hooks/             # useAutoSave
+│           └── lib/               # Supabase client/server, language utils
 ├── packages/
-│   ├── ai-engine/              # AI providers and prompts
-│   ├── expo-template/          # Base Expo project template
-│   └── shared/                 # Shared types and utilities
-├── supabase/                   # Database schema
-└── turbo.json                  # Turborepo configuration
+│   └── ai-engine/                 # AI providers, agent, system prompts
+│       └── src/
+│           ├── providers/         # GeminiProvider, ClaudeProvider
+│           ├── prompts/           # System prompts (5 modules for Expo SDK 54)
+│           ├── agent.ts           # RorkAgent (11-tool agentic loop)
+│           └── tools/             # Tool definitions
+├── supabase/
+│   └── schema.sql                 # Full Postgres schema
+├── vercel.json                    # Vercel monorepo config
+├── turbo.json                     # Turborepo config
+└── CLAUDE.md                      # Full project context for AI sessions
 ```
 
 ## Getting Started
@@ -53,128 +74,80 @@ rork-ai-builder/
 - Node.js 18+
 - pnpm 9+
 - Supabase account
-- Claude API key and/or Gemini API key
+- Gemini API key (free tier works) and/or Claude API key
 
 ### Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ungden/rork-ai-builder.git
-   cd rork-ai-builder
-   ```
-
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-
-3. Set up environment variables:
-   ```bash
-   cp apps/web/.env.example apps/web/.env.local
-   ```
-   
-   Edit `.env.local` with your credentials:
-   ```env
-   # Supabase
-   NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-   # AI APIs
-   ANTHROPIC_API_KEY=your-claude-api-key
-   GEMINI_API_KEY=your-gemini-api-key
-
-   # Preview Server (optional)
-   NEXT_PUBLIC_PREVIEW_SERVER_URL=http://localhost:3001
-   ```
-
-4. Set up the database:
-   - Go to your Supabase dashboard
-   - Open the SQL Editor
-   - Run the schema from `supabase/schema.sql`
-
-5. Start the development server:
-   ```bash
-   pnpm dev
-   ```
-
-6. Open [http://localhost:3000](http://localhost:3000)
-
-Preview runs in-browser via `snack-sdk`; no standalone preview server package is required.
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+K` / `Ctrl+K` | Open command palette |
-| `Cmd+S` / `Ctrl+S` | Save all files |
-| `Cmd+P` / `Ctrl+P` | Quick file open |
-
-## Available Scripts
-
 ```bash
-# Development
-pnpm dev              # Start all apps in development mode
-pnpm dev:web          # Start only the web app
-pnpm dev:preview      # Print preview migration note
-
-# Build
-pnpm build            # Build all packages
-pnpm build:web        # Build only the web app
-
-# Type checking
-pnpm typecheck        # Type check all packages
-
-# Linting
-pnpm lint             # Lint all packages
+git clone https://github.com/ungden/rork-ai-builder.git
+cd rork-ai-builder
+pnpm install
 ```
 
-## Environment Variables
+### Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Yes |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes |
-| `ANTHROPIC_API_KEY` | Claude API key | Yes* |
-| `GEMINI_API_KEY` | Gemini API key | Yes* |
-| `GOOGLE_AI_API_KEY` | Gemini API key (legacy alias) | Optional |
-| `NEXT_PUBLIC_PREVIEW_SERVER_URL` | Preview server URL | No |
+Create `apps/web/.env.local`:
 
-*At least one AI provider key is required.
+```env
+# Supabase (required)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
-## Deployment
+# AI — at least one required
+GEMINI_API_KEY=your-gemini-key
+ANTHROPIC_API_KEY=your-claude-key   # optional
+```
 
-### Vercel (Web App)
+### Database Setup
 
-1. Push to GitHub
-2. Import to Vercel
-3. Set root directory to `apps/web`
-4. Add environment variables
-5. Deploy
+1. Go to your Supabase dashboard → SQL Editor
+2. Run the schema from `supabase/schema.sql`
+
+### Run
+
+```bash
+pnpm dev        # Start dev server (http://localhost:3000)
+pnpm build:web  # Production build
+```
+
+## Deployment (Vercel)
+
+The repo is configured for Vercel monorepo deployment:
+
+- **Build Command**: `pnpm build:web`
+- **Output Directory**: `apps/web/.next`
+- **Max Duration**: 300s (for agent API route)
+- **Environment Variables**: Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GEMINI_API_KEY` in Vercel dashboard
+
+See `vercel.json` for full config.
 
 ## API Routes
 
 | Route | Method | Description |
 |-------|--------|-------------|
+| `/api/agent/run` | POST | AI agent SSE endpoint (Gemini/Claude) |
 | `/api/projects` | GET, POST | List/create projects |
 | `/api/projects/[id]` | GET, PUT, DELETE | Project CRUD |
-| `/api/projects/[id]/files` | PUT, POST, DELETE | File operations |
+| `/api/projects/[id]/files` | GET, PUT | File operations |
 | `/api/projects/[id]/export` | GET | Download as ZIP |
-| `/api/generate` | POST | AI code generation |
-| `/api/generate/stream` | POST | Streaming AI generation |
-| `/api/settings` | GET, PUT, DELETE | User settings |
+| `/api/settings` | GET, PUT | User settings |
+| `/api/github/sync` | POST | Push to GitHub |
+| `/api/eas/build` | POST | Generate EAS build config |
+| `/api/demo/generate` | POST | Demo mode generation |
 
-## Contributing
+## Keyboard Shortcuts
 
-Contributions are welcome! Please read our contributing guidelines first.
-
-## License
-
-MIT
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+K` | Command palette |
+| `Cmd+S` | Save all files |
 
 ## Acknowledgments
 
 - Inspired by [Rork](https://rork.com)
-- Built with [Expo](https://expo.dev)
-- AI powered by [Claude](https://anthropic.com) and [Gemini](https://ai.google.dev)
+- Built with [Expo](https://expo.dev) and [Snack SDK](https://github.com/expo/snack)
+- AI powered by [Gemini](https://ai.google.dev) and [Claude](https://anthropic.com)
+
+## License
+
+MIT
