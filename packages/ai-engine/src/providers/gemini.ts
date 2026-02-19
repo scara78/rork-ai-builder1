@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Chat, type Content, type Part, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, type Content, type Part, Type } from '@google/genai';
 import type { 
   AIProvider, 
   GenerateParams, 
@@ -9,7 +9,7 @@ import type {
 import { getLanguageFromPath } from '../tools';
 import { FULL_SYSTEM_PROMPT } from '../prompts';
 
-const GEMINI_MODEL = 'gemini-2.5-pro-preview-06-05';
+const GEMINI_MODEL = 'gemini-3-pro-preview';
 
 // Maximum number of API calls to prevent infinite loops / runaway costs
 const MAX_API_CALLS = 100;
@@ -130,7 +130,7 @@ function buildContinuationPrompt(remainingFiles: string[]): string {
 
 export class GeminiProvider implements AIProvider {
   name = 'gemini';
-  displayName = 'Gemini 2.0 Flash';
+  displayName = 'Gemini 3 Pro';
 
   private ai: GoogleGenAI;
 
@@ -184,6 +184,8 @@ export class GeminiProvider implements AIProvider {
     }
 
     // Create chat session with all 3 tools
+    // Gemini 3: use thinkingConfig.thinkingLevel instead of legacy thinking_budget
+    // temperature must stay at 1.0 (default) per Gemini 3 docs
     const chat = this.ai.chats.create({
       model: GEMINI_MODEL,
       config: {
@@ -191,6 +193,7 @@ export class GeminiProvider implements AIProvider {
         systemInstruction: fullSystemPrompt,
         maxOutputTokens: maxTokens,
         temperature: 1.0,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
       },
       history: this.formatHistory(conversationHistory),
     });
