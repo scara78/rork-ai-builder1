@@ -17,6 +17,7 @@ const PreviewPanel = dynamic(
 );
 import { useProjectStore, type EditorFile, type UIMessage } from '@/stores/projectStore';
 import { useToast } from '@/components/ui/Toast';
+import { useAutoSave } from '@/hooks/useAutoSave';
 
 type ViewMode = 'preview' | 'code';
 
@@ -34,6 +35,9 @@ export default function EditorPage() {
   
   const { setProject, files, setActiveFile } = useProjectStore();
   const { showToast } = useToast();
+
+  // Auto-save dirty files every 2 seconds after changes
+  useAutoSave({ projectId, delay: 2000, enabled: !loading });
 
   // Keyboard shortcut for command palette (Cmd+K / Ctrl+K)
   useEffect(() => {

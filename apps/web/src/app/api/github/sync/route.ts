@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { syncToGitHub, importFromGitHub } from '@/lib/github';
+import { getLanguageFromPath } from '@/lib/language';
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,7 +70,7 @@ export async function PUT(request: NextRequest) {
     }
     
     const body = await request.json();
-    const { owner, repo, branch = 'main' } = body;
+    const { owner, repo, branch = 'main', projectId } = body;
     
     if (!owner || !repo) {
       return NextResponse.json(
@@ -97,6 +98,37 @@ export async function PUT(request: NextRequest) {
     // Import from GitHub
     const files = await importFromGitHub(githubToken, owner, repo, branch);
     
+    // If a projectId was supplied, persist the imported files to the DB
+    if (projectId) {
+      // Verify the project belongs to this user
+      const { data: project } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('id', projectId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (project) {
+        const upsertData = Object.entries(files).map(([path, content]) => ({
+          project_id: projectId,
+          path,
+          content,
+          language: getLanguageFromPath(path),
+        }));
+        
+        if (upsertData.length > 0) {
+          await supabase
+            .from('project_files')
+            .upsert(upsertData, { onConflict: 'project_id,path' });
+          
+          await supabase
+            .from('projects')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', projectId);
+        }
+      }
+    }
+    
     return NextResponse.json({
       success: true,
       files,
@@ -111,3 +143,5 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+

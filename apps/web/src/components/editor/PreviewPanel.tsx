@@ -124,6 +124,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [webPreviewURL, setWebPreviewURL] = useState<string | undefined>(undefined);
+  const [deviceSize, setDeviceSize] = useState<'phone' | 'tablet'>('phone');
 
   // The S3 origin the web player iframe will postMessage from.
   const webPlayerOriginRef = useRef<string | null>(null);
@@ -398,10 +399,18 @@ import 'expo-router/entry';
             <RefreshCw size={13} />
           </button>
           {/* Device type icons */}
-          <button className="p-1.5 text-white bg-white/10 rounded-md" title="Phone">
+          <button
+            onClick={() => setDeviceSize('phone')}
+            className={`p-1.5 rounded-md transition-colors ${deviceSize === 'phone' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+            title="Phone"
+          >
             <Smartphone size={13} />
           </button>
-          <button className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors rounded-md hover:bg-white/5" title="Tablet">
+          <button
+            onClick={() => setDeviceSize('tablet')}
+            className={`p-1.5 rounded-md transition-colors ${deviceSize === 'tablet' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+            title="Tablet"
+          >
             <Tablet size={13} />
           </button>
         </div>
@@ -409,9 +418,13 @@ import 'expo-router/entry';
 
       {/* Preview Area */}
       <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-        {/* Phone Frame - thin, clean, no fake notch/status bar */}
-        <div className="relative w-[320px] h-[693px] bg-black rounded-[40px] border-[3px] border-[#333] shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-10">
-          <div className="absolute inset-0 bg-[#0a0a0a] overflow-hidden rounded-[37px]">
+        {/* Device Frame - phone or tablet */}
+        <div className={`relative bg-black border-[3px] border-[#333] shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-10 ${
+          deviceSize === 'tablet'
+            ? 'w-[580px] h-[760px] rounded-[24px]'
+            : 'w-[320px] h-[693px] rounded-[40px]'
+        }`}>
+          <div className={`absolute inset-0 bg-[#0a0a0a] overflow-hidden ${deviceSize === 'tablet' ? 'rounded-[21px]' : 'rounded-[37px]'}`}>
             {webPreviewURL ? (
               <iframe
                 ref={handleIframeRef}

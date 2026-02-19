@@ -1,7 +1,7 @@
 /**
  * AI Context Injection System
  * Dynamically loads relevant documentation based on user prompts
- * Updated for SDK 52 compatibility
+ * Updated for SDK 54 compatibility
  */
 
 // Keywords mapped to documentation topics
@@ -53,9 +53,9 @@ const KEYWORD_TO_TOPIC: Record<string, string[]> = {
   'list': ['styling'],
 };
 
-// Topic to documentation content (SDK 52 compatible)
+// Topic to documentation content (SDK 54 compatible)
 const TOPIC_DOCS: Record<string, string> = {
-  'navigation': `## Navigation Context (SDK 52)
+  'navigation': `## Navigation Context (SDK 54)
 
 Use Tabs from 'expo-router' for tab navigation:
 \`\`\`tsx
@@ -85,7 +85,7 @@ import { Link } from 'expo-router';
 <Link href="/details">Go to details</Link>
 \`\`\``,
 
-  'tabs': `## Tabs (SDK 52)
+  'tabs': `## Tabs (SDK 54)
 
 Use Tabs from 'expo-router':
 \`\`\`tsx
@@ -113,7 +113,7 @@ Key rules:
 - Use tabBarIcon for tab icons with Ionicons
 - Set headerShown: false if nesting Stack inside tabs`,
 
-  'styling': `## Styling Rules (SDK 52)
+  'styling': `## Styling Rules (SDK 54)
 
 Use StyleSheet.create and React Native shadow styles (NOT CSS boxShadow):
 \`\`\`tsx
@@ -144,7 +144,7 @@ const colors = {
 
 Use contentInsetAdjustmentBehavior="automatic" on ScrollView/FlatList for safe areas.`,
 
-  'icons': `## Icons (SDK 52)
+  'icons': `## Icons (SDK 54)
 
 Use Ionicons from @expo/vector-icons (NOT expo-symbols):
 \`\`\`tsx
@@ -160,19 +160,20 @@ Common icons:
 - Social: heart, star, person, people, chatbubble
 - Actions: share, download, trash, pencil, bookmark`,
 
-  'media': `## Media (expo-av for SDK 52)
+  'media': `## Media (SDK 54)
 
-Audio playback (use expo-av, NOT expo-audio):
+Audio playback (use expo-audio in SDK 54):
 \`\`\`tsx
-import { Audio } from 'expo-av';
-const { sound } = await Audio.Sound.createAsync({ uri: audioUrl });
-await sound.playAsync();
+import { useAudioPlayer } from 'expo-audio';
+const player = useAudioPlayer({ uri: audioUrl });
+player.play();
 \`\`\`
 
-Video playback (use expo-av, NOT expo-video):
+Video playback (use expo-video in SDK 54):
 \`\`\`tsx
-import { Video, ResizeMode } from 'expo-av';
-<Video source={{ uri: videoUrl }} useNativeControls resizeMode={ResizeMode.CONTAIN} />
+import { VideoView, useVideoPlayer } from 'expo-video';
+const player = useVideoPlayer({ uri: videoUrl });
+<VideoView player={player} style={{ flex: 1 }} nativeControls />
 \`\`\`
 
 Camera:
@@ -181,9 +182,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 <CameraView ref={cameraRef} facing={facing} style={{ flex: 1 }} />
 \`\`\``,
 
-  'visual-effects': `## Visual Effects (SDK 52)
+  'visual-effects': `## Visual Effects (SDK 54)
 
-BlurView (expo-blur) - the blur library available in SDK 52:
+BlurView (expo-blur):
 \`\`\`tsx
 import { BlurView } from 'expo-blur';
 <BlurView tint="dark" intensity={80} style={{ borderRadius: 16, overflow: 'hidden' }}>
@@ -191,9 +192,9 @@ import { BlurView } from 'expo-blur';
 </BlurView>
 \`\`\`
 
-NOTE: expo-glass-effect / GlassView is NOT available in SDK 52. Use BlurView instead.`,
+NOTE: expo-glass-effect / GlassView is NOT available. Use BlurView instead.`,
 
-  'components': `## Components (SDK 52)
+  'components': `## Components (SDK 54)
 
 Use expo-image for all images:
 \`\`\`tsx
@@ -216,14 +217,15 @@ if (Platform.OS === 'ios') {
 }
 \`\`\``,
 
-  'expo-sdk': `## Expo SDK 52 Rules
+  'expo-sdk': `## Expo SDK 54 Rules
 
-Library preferences for SDK 52:
+Library preferences for SDK 54:
 - @expo/vector-icons Ionicons (NOT expo-symbols)
-- expo-av for audio/video (NOT expo-audio/expo-video)
+- expo-audio for audio (NOT expo-av Audio)
+- expo-video for video (NOT expo-av Video)
 - Platform.OS (NOT process.env.EXPO_OS)
 - useWindowDimensions (NOT Dimensions.get())
-- React.useContext (NOT React.use)
+- React.use (available in SDK 54 / React 19)
 - StyleSheet.create for styles
 - React Native shadow styles (NOT CSS boxShadow)
 

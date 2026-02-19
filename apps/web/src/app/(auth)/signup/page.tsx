@@ -64,7 +64,7 @@ export default function SignupPage() {
         </div>
         <h2 className="text-xl font-bold">Check your email</h2>
         <p className="text-muted-foreground">
-          We've sent a verification link to <span className="text-white">{email}</span>
+          We&apos;ve sent a verification link to <span className="text-white">{email}</span>
         </p>
         <Link href="/login" className="text-sm text-white hover:underline">
           Back to sign in

@@ -36,11 +36,9 @@ export function AgentStatus() {
     progress, 
     currentTool,
     files,
-    messages,
     iterations,
     error,
     summary,
-    filesCreated,
   } = useAgentStore();
   
   const phaseInfo = PHASE_INFO[phase];
@@ -120,6 +118,15 @@ export function AgentStatus() {
                   </span>
                 )}
               </div>
+              {plan.planSteps && plan.planSteps.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {plan.planSteps.slice(0, 4).map((step, i) => (
+                    <div key={`${step}-${i}`} className="text-[10px] text-gray-500">
+                      {i + 1}. {step}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           
@@ -180,29 +187,4 @@ export function AgentStatus() {
   );
 }
 
-/**
- * Inline agent status for chat header
- */
-export function AgentStatusBadge() {
-  const { isRunning, phase, progress } = useAgentStore();
-  
-  if (phase === 'idle' && !isRunning) {
-    return null;
-  }
-  
-  const phaseInfo = PHASE_INFO[phase];
-  
-  return (
-    <div className="flex items-center gap-2 px-2 py-1 bg-[#27272a] rounded-full">
-      {isRunning ? (
-        <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
-      ) : (
-        <span className={phaseInfo.color}>{phaseInfo.icon}</span>
-      )}
-      <span className={`text-[10px] font-medium ${phaseInfo.color}`}>
-        {phaseInfo.label}
-      </span>
-      <span className="text-[10px] text-gray-500">{progress}%</span>
-    </div>
-  );
-}
+

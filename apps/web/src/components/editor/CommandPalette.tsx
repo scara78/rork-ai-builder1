@@ -129,7 +129,7 @@ export function CommandPalette({
       icon: <Settings size={16} className="text-gray-400" />,
       category: 'navigation',
       action: () => {
-        window.location.href = '/settings';
+        window.location.href = '/dashboard/settings';
       },
     });
     
@@ -140,7 +140,7 @@ export function CommandPalette({
       icon: <FolderOpen size={16} className="text-yellow-400" />,
       category: 'navigation',
       action: () => {
-        window.location.href = '/';
+        window.location.href = '/dashboard';
       },
     });
     

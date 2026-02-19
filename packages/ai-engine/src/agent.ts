@@ -25,6 +25,7 @@ import {
   type ToolInput,
   type CreatePlanInput,
   type WriteFileInput,
+  type PatchFileInput,
   type CompleteInput,
   executeTool,
   getLanguageFromPath,
@@ -42,6 +43,13 @@ export type AgentPhase =
 
 // Agent event types for streaming
 export type AgentEventType = 
+  | 'run_start'
+  | 'run_finish'
+  | 'iteration'
+  | 'plan_created'
+  | 'step_start'
+  | 'step_finish'
+  | 'text_delta'
   | 'phase_change'
   | 'tool_call'
   | 'tool_result'
@@ -53,8 +61,11 @@ export type AgentEventType =
 
 export interface AgentEvent {
   type: AgentEventType;
+  iteration?: number;
+  step?: string;
   phase?: AgentPhase;
   message?: string;
+  plan?: AppPlan;
   tool?: string;
   input?: unknown;
   result?: ToolResult;
@@ -89,6 +100,7 @@ export interface AppPlan {
   screens: string[];
   fileTree: string[];
   dependencies: string[];
+  planSteps?: string[];
 }
 
 /**
@@ -136,6 +148,13 @@ export class RorkAgent {
     }
 
     try {
+      this.phase = 'planning';
+      this.emit({
+        type: 'run_start',
+        phase: 'planning',
+        message: 'Agent run started',
+      });
+
       // Build the agent system prompt
       const systemPrompt = this.buildSystemPrompt();
       
@@ -144,8 +163,13 @@ export class RorkAgent {
         { role: 'user', content: this.buildInitialPrompt(prompt) },
       ];
 
-      while (this.iterations < this.config.maxIterations! && this.phase !== 'complete' && this.phase !== 'error') {
+      while (this.iterations < this.config.maxIterations! && this.shouldContinue()) {
         this.iterations++;
+        this.emit({
+          type: 'iteration',
+          iteration: this.iterations,
+          message: `Starting iteration ${this.iterations}`,
+        });
         
         this.emit({
           type: 'thinking',
@@ -175,7 +199,7 @@ export class RorkAgent {
 
           if (block.type === 'text') {
             this.emit({
-              type: 'thinking',
+              type: 'text_delta',
               message: block.text,
             });
           } else if (block.type === 'tool_use') {
@@ -185,8 +209,15 @@ export class RorkAgent {
 
             this.emit({
               type: 'tool_call',
+              iteration: this.iterations,
               tool: toolName,
               input: toolInput,
+            });
+            this.emit({
+              type: 'step_start',
+              iteration: this.iterations,
+              step: `${toolName}`,
+              message: `Running ${toolName}`,
             });
 
             // Update phase based on tool
@@ -197,8 +228,15 @@ export class RorkAgent {
 
             this.emit({
               type: 'tool_result',
+              iteration: this.iterations,
               tool: toolName,
               result,
+            });
+            this.emit({
+              type: 'step_finish',
+              iteration: this.iterations,
+              step: `${toolName}`,
+              message: result.success ? `${toolName} completed` : `${toolName} failed`,
             });
 
             // Handle special tools
@@ -211,9 +249,13 @@ export class RorkAgent {
                 screens: planInput.screens,
                 fileTree: planInput.file_tree,
                 dependencies: planInput.dependencies || [],
+                planSteps: planInput.plan_steps || [],
               };
+              // NOTE: plan_created SSE is emitted by the executor (route.ts createPlan).
+              // Do NOT emit plan_created here to avoid sending the event twice.
             } else if (toolName === 'write_file') {
               const writeInput = toolInput as WriteFileInput;
+              const fileExists = this.files.has(writeInput.path);
               const file: ParsedFile = {
                 path: writeInput.path,
                 content: writeInput.content,
@@ -221,9 +263,18 @@ export class RorkAgent {
               };
               this.files.set(file.path, file);
               this.emit({
-                type: this.files.has(file.path) ? 'file_updated' : 'file_created',
+                type: fileExists ? 'file_updated' : 'file_created',
                 file,
               });
+            } else if (toolName === 'patch_file') {
+              const patchInput = toolInput as PatchFileInput;
+              const existing = this.files.get(patchInput.path);
+              if (existing) {
+                this.files.set(patchInput.path, {
+                  ...existing,
+                  content: existing.content.replace(patchInput.find, patchInput.replace),
+                });
+              }
             } else if (toolName === 'complete') {
               const completeInput = toolInput as CompleteInput;
               this.phase = 'complete';
@@ -287,6 +338,12 @@ export class RorkAgent {
         usage: this.totalUsage,
         iterations: this.iterations,
       };
+    } finally {
+      this.emit({
+        type: 'run_finish',
+        phase: this.phase,
+        message: `Agent finished in phase ${this.phase}`,
+      });
     }
   }
 
@@ -299,14 +356,15 @@ export class RorkAgent {
 ## Agent Instructions
 
 You are an AUTONOMOUS AI agent that builds complete Expo mobile apps.
-You have access to tools that let you create files, run tests, and fix errors.
+You have access to tools that let you plan, create files, patch files, verify, and fix errors.
 
 ### Your Process
 1. **PLAN FIRST**: Always start by calling create_plan to define the app structure
 2. **CODE**: Use write_file to create all files in your plan
-3. **TEST**: Call run_test to check for errors
-4. **DEBUG**: If errors found, use fix_error to resolve them
-5. **COMPLETE**: When everything works, call complete
+3. **PATCH PRECISELY**: Use patch_file for targeted changes instead of rewriting large files
+4. **VERIFY**: Call verify_project (or run_test) to check for type/lint/build issues
+5. **DEBUG**: If errors found, use fix_error plus patch_file/write_file to resolve them
+6. **COMPLETE**: When everything works, call complete
 
 ### Rules
 - Create a COMPLETE, working app - not a skeleton
@@ -316,6 +374,7 @@ You have access to tools that let you create files, run tests, and fix errors.
 - Add realistic sample data where needed
 - Use modern Expo SDK 54+ patterns
 - Handle loading and error states
+- Use search_files before risky refactors
 - NEVER leave placeholder comments like "// TODO" or "// rest of code"
 
 ### File Generation Order
@@ -359,9 +418,14 @@ Start by creating a plan, then implement all the files needed for a complete, wo
         this.phase = 'planning';
         break;
       case 'write_file':
+      case 'patch_file':
       case 'delete_file':
         this.phase = 'coding';
         break;
+      case 'search_files':
+        this.phase = 'planning';
+        break;
+      case 'verify_project':
       case 'run_test':
         this.phase = 'testing';
         break;
@@ -401,6 +465,10 @@ Start by creating a plan, then implement all the files needed for a complete, wo
     this.errors = [];
     this.iterations = 0;
     this.totalUsage = { inputTokens: 0, outputTokens: 0 };
+  }
+
+  private shouldContinue(): boolean {
+    return this.phase !== 'complete' && this.phase !== 'error';
   }
 
   /**

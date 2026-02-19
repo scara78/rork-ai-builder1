@@ -59,27 +59,45 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { preferred_model, theme, github_token, expo_token } = body;
     
-    // Build update object with only provided fields
+    // Build update object with ONLY the fields the caller provided
     const updateData: Record<string, string> = {};
-    if (preferred_model) updateData.preferred_model = preferred_model;
-    if (theme) updateData.theme = theme;
+    if (preferred_model !== undefined) updateData.preferred_model = preferred_model;
+    if (theme !== undefined) updateData.theme = theme;
     if (github_token !== undefined) updateData.github_token = github_token;
     if (expo_token !== undefined) updateData.expo_token = expo_token;
-    
-    // Upsert settings with default values for new users
-    const { data: settings, error } = await supabase
+
+    // Try to update the existing row first
+    const { data: existing } = await supabase
       .from('user_settings')
-      .upsert({
-        user_id: user.id,
-        preferred_model: updateData.preferred_model ?? 'claude',
-        theme: updateData.theme ?? 'dark',
-        github_token: updateData.github_token,
-        expo_token: updateData.expo_token,
-      }, {
-        onConflict: 'user_id',
-      })
-      .select()
+      .select('user_id')
+      .eq('user_id', user.id)
       .single();
+
+    let settingsQuery;
+    if (existing) {
+      // Row exists — update only the provided fields
+      settingsQuery = supabase
+        .from('user_settings')
+        .update(updateData)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+    } else {
+      // New user — insert with defaults for any missing fields
+      settingsQuery = supabase
+        .from('user_settings')
+        .insert({
+          user_id: user.id,
+          preferred_model: updateData.preferred_model ?? 'claude',
+          theme: updateData.theme ?? 'dark',
+          github_token: updateData.github_token ?? null,
+          expo_token: updateData.expo_token ?? null,
+        })
+        .select()
+        .single();
+    }
+
+    const { data: settings, error } = await settingsQuery;
     
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

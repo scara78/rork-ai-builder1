@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { getLanguageFromPath } from '@/lib/language';
 
 export interface EditorFile {
   path: string;
@@ -70,26 +71,6 @@ const initialState = {
   generatingFiles: [] as string[],
   runtimeErrors: [] as RuntimeError[],
 };
-
-function getLanguageFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'tsx':
-    case 'ts':
-      return 'typescript';
-    case 'jsx':
-    case 'js':
-      return 'javascript';
-    case 'json':
-      return 'json';
-    case 'css':
-      return 'css';
-    case 'md':
-      return 'markdown';
-    default:
-      return 'plaintext';
-  }
-}
 
 export const useProjectStore = create<ProjectState>()(
   immer((set, get) => ({

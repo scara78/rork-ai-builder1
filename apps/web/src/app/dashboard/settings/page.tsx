@@ -66,6 +66,14 @@ export default function SettingsPage() {
       }
       
       setSettings(data.settings);
+
+      // Apply theme to DOM immediately
+      if (updates.theme) {
+        const html = document.documentElement;
+        html.classList.toggle('dark', updates.theme === 'dark');
+        html.classList.toggle('light', updates.theme === 'light');
+      }
+
       showToast('Settings saved', 'success');
     } catch (error) {
       showToast('Failed to save settings', 'error');
@@ -73,6 +81,15 @@ export default function SettingsPage() {
       setSaving(false);
     }
   };
+
+  // Apply saved theme on mount
+  useEffect(() => {
+    if (settings?.theme) {
+      const html = document.documentElement;
+      html.classList.toggle('dark', settings.theme === 'dark');
+      html.classList.toggle('light', settings.theme === 'light');
+    }
+  }, [settings?.theme]);
 
   const disconnectIntegration = async (integration: 'github' | 'expo') => {
     setSaving(true);

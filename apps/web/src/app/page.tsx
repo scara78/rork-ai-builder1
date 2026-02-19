@@ -58,7 +58,7 @@ export default function HomePage() {
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/editor/demo"
+              href="/demo"
               className="inline-flex items-center gap-2 px-6 py-3 border border-border rounded-lg font-medium hover:bg-muted transition-colors"
             >
               Try Demo

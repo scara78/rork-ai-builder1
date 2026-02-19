@@ -21,22 +21,8 @@ interface UsePreviewServerReturn {
 
 const PREVIEW_SERVER_URL = process.env.NEXT_PUBLIC_PREVIEW_SERVER_URL || 'http://localhost:3001';
 
-const isDev = typeof window !== 'undefined' ? window.location.hostname === 'localhost' : false;
-
 export function usePreviewServer(projectId: string | null): UsePreviewServerReturn {
-  if (!isDev) {
-    // Return no-op state for production
-    return {
-      isConnected: false,
-      isStarting: false,
-      webUrl: null,
-      expoUrl: null,
-      error: 'Preview server only available in development',
-      startPreview: async () => {},
-      stopPreview: async () => {},
-      syncFiles: async () => {},
-    };
-  }
+  const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
   const [isConnected, setIsConnected] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [webUrl, setWebUrl] = useState<string | null>(null);
@@ -47,7 +33,7 @@ export function usePreviewServer(projectId: string | null): UsePreviewServerRetu
   
   // Initialize WebSocket connection
   useEffect(() => {
-    if (!projectId) return;
+    if (!isDev || !projectId) return;
     
     const socket = io(PREVIEW_SERVER_URL, {
       transports: ['websocket', 'polling'],
@@ -102,10 +88,10 @@ export function usePreviewServer(projectId: string | null): UsePreviewServerRetu
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [projectId]);
+  }, [isDev, projectId]);
   
   const fetchPreviewStatus = useCallback(async () => {
-    if (!projectId) return;
+    if (!isDev || !projectId) return;
     
     try {
       const response = await fetch(`${PREVIEW_SERVER_URL}/api/projects/${projectId}/preview`);
@@ -118,10 +104,10 @@ export function usePreviewServer(projectId: string | null): UsePreviewServerRetu
     } catch (err) {
       console.error('[Preview] Failed to fetch status:', err);
     }
-  }, [projectId]);
+  }, [isDev, projectId]);
   
   const startPreview = useCallback(async () => {
-    if (!projectId) return;
+    if (!isDev || !projectId) return;
     
     setIsStarting(true);
     setError(null);
@@ -139,10 +125,10 @@ export function usePreviewServer(projectId: string | null): UsePreviewServerRetu
       setError(err instanceof Error ? err.message : 'Failed to start preview');
       setIsStarting(false);
     }
-  }, [projectId]);
+  }, [isDev, projectId]);
   
   const stopPreview = useCallback(async () => {
-    if (!projectId) return;
+    if (!isDev || !projectId) return;
     
     try {
       await fetch(`${PREVIEW_SERVER_URL}/api/projects/${projectId}/stop`, {
@@ -154,10 +140,10 @@ export function usePreviewServer(projectId: string | null): UsePreviewServerRetu
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop preview');
     }
-  }, [projectId]);
+  }, [isDev, projectId]);
   
   const syncFiles = useCallback(async (files: Record<string, string>) => {
-    if (!projectId) return;
+    if (!isDev || !projectId) return;
     
     try {
       const response = await fetch(`${PREVIEW_SERVER_URL}/api/projects/${projectId}/files`, {
@@ -172,14 +158,14 @@ export function usePreviewServer(projectId: string | null): UsePreviewServerRetu
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sync files');
     }
-  }, [projectId]);
+  }, [isDev, projectId]);
   
   return {
     isConnected,
     isStarting,
     webUrl,
     expoUrl,
-    error,
+    error: isDev ? error : 'Preview server only available in development',
     startPreview,
     stopPreview,
     syncFiles,

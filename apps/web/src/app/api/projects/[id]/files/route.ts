@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { getLanguageFromPath } from '@/lib/language';
 
 interface FileUpdate {
   path: string;
@@ -196,22 +197,4 @@ export async function DELETE(
   }
 }
 
-function getLanguageFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'tsx':
-    case 'ts':
-      return 'typescript';
-    case 'jsx':
-    case 'js':
-      return 'javascript';
-    case 'json':
-      return 'json';
-    case 'css':
-      return 'css';
-    case 'md':
-      return 'markdown';
-    default:
-      return 'plaintext';
-  }
-}
+

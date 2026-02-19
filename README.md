@@ -28,7 +28,7 @@ An AI-powered no-code platform for building React Native mobile apps from natura
 ## Project Structure
 
 ```
-rork-ai-builder-clone/
+rork-ai-builder/
 ├── apps/
 │   ├── web/                    # Next.js web application
 │   │   ├── src/
@@ -38,13 +38,11 @@ rork-ai-builder-clone/
 │   │   │   ├── lib/           # Utility libraries
 │   │   │   └── stores/        # Zustand state management
 │   │   └── ...
-│   └── preview-server/         # Express + WebSocket preview server
 ├── packages/
 │   ├── ai-engine/              # AI providers and prompts
 │   ├── expo-template/          # Base Expo project template
 │   └── shared/                 # Shared types and utilities
 ├── supabase/                   # Database schema
-├── docker-compose.yml          # Docker configuration
 └── turbo.json                  # Turborepo configuration
 ```
 
@@ -61,8 +59,8 @@ rork-ai-builder-clone/
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/rork-ai-builder-clone.git
-   cd rork-ai-builder-clone
+   git clone https://github.com/ungden/rork-ai-builder.git
+   cd rork-ai-builder
    ```
 
 2. Install dependencies:
@@ -84,7 +82,7 @@ rork-ai-builder-clone/
 
    # AI APIs
    ANTHROPIC_API_KEY=your-claude-api-key
-   GOOGLE_AI_API_KEY=your-gemini-api-key
+   GEMINI_API_KEY=your-gemini-api-key
 
    # Preview Server (optional)
    NEXT_PUBLIC_PREVIEW_SERVER_URL=http://localhost:3001
@@ -102,18 +100,7 @@ rork-ai-builder-clone/
 
 6. Open [http://localhost:3000](http://localhost:3000)
 
-### Running the Preview Server (Optional)
-
-For live Expo previews:
-
-```bash
-# Development
-cd apps/preview-server
-pnpm dev
-
-# Or with Docker
-docker-compose up preview-server
-```
+Preview runs in-browser via `snack-sdk`; no standalone preview server package is required.
 
 ## Keyboard Shortcuts
 
@@ -129,7 +116,7 @@ docker-compose up preview-server
 # Development
 pnpm dev              # Start all apps in development mode
 pnpm dev:web          # Start only the web app
-pnpm dev:preview      # Start only the preview server
+pnpm dev:preview      # Print preview migration note
 
 # Build
 pnpm build            # Build all packages
@@ -150,7 +137,8 @@ pnpm lint             # Lint all packages
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes |
 | `ANTHROPIC_API_KEY` | Claude API key | Yes* |
-| `GOOGLE_AI_API_KEY` | Gemini API key | Yes* |
+| `GEMINI_API_KEY` | Gemini API key | Yes* |
+| `GOOGLE_AI_API_KEY` | Gemini API key (legacy alias) | Optional |
 | `NEXT_PUBLIC_PREVIEW_SERVER_URL` | Preview server URL | No |
 
 *At least one AI provider key is required.
@@ -164,12 +152,6 @@ pnpm lint             # Lint all packages
 3. Set root directory to `apps/web`
 4. Add environment variables
 5. Deploy
-
-### Preview Server (VPS)
-
-```bash
-docker-compose up -d preview-server
-```
 
 ## API Routes
 

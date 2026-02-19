@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
 };
 
 export default function DemoPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   
   const { setProject, files } = useProjectStore();
@@ -194,7 +194,6 @@ export default function DemoPage() {
   // Initialize demo project
   useEffect(() => {
     setProject('demo', 'Demo App', DEMO_FILES);
-    setLoading(false);
   }, [setProject]);
 
   // Keyboard shortcuts

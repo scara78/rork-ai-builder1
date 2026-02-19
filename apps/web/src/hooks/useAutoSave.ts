@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useDebounce } from './useDebounce';
+import { getLanguageFromPath } from '@/lib/language';
 
 interface UseAutoSaveOptions {
   projectId: string;
@@ -19,15 +20,19 @@ export function useAutoSave({ projectId, delay = 2000, enabled = true }: UseAuto
   const saveFiles = useCallback(async () => {
     if (!enabled || isSavingRef.current) return;
 
-    // Find changed files
-    const changedFiles: Record<string, string> = {};
+    // Find changed files and convert to FileUpdate[] array (matches PUT route shape)
+    const changedFiles: Array<{ path: string; content: string; language: string }> = [];
     for (const [path, file] of Object.entries(debouncedFiles)) {
       if (lastSavedRef.current[path] !== file.content) {
-        changedFiles[path] = file.content;
+        changedFiles.push({
+          path,
+          content: file.content,
+          language: file.language || getLanguageFromPath(path),
+        });
       }
     }
 
-    if (Object.keys(changedFiles).length === 0) return;
+    if (changedFiles.length === 0) return;
 
     isSavingRef.current = true;
 
@@ -40,7 +45,7 @@ export function useAutoSave({ projectId, delay = 2000, enabled = true }: UseAuto
 
       if (response.ok) {
         // Update last saved state
-        for (const [path, content] of Object.entries(changedFiles)) {
+        for (const { path, content } of changedFiles) {
           lastSavedRef.current[path] = content;
         }
       }
@@ -55,14 +60,16 @@ export function useAutoSave({ projectId, delay = 2000, enabled = true }: UseAuto
     saveFiles();
   }, [saveFiles]);
 
-  // Initialize last saved state
+  // Initialize last saved state on project change only.
+  // Intentionally omitting `files` from deps — this runs once per project load
+  // to snapshot the baseline, not on every keystroke.
   useEffect(() => {
     const initialState: Record<string, string> = {};
     for (const [path, file] of Object.entries(files)) {
       initialState[path] = file.content;
     }
     lastSavedRef.current = initialState;
-  }, [projectId]); // Only on project change
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { saveFiles };
 }

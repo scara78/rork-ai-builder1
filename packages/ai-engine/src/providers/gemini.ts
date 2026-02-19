@@ -9,7 +9,7 @@ import type {
 import { getLanguageFromPath } from '../tools';
 import { FULL_SYSTEM_PROMPT } from '../prompts';
 
-const GEMINI_MODEL = 'gemini-3-pro-preview';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 // Tool declaration using the new @google/genai SDK format
 const WRITE_FILE_DECLARATION = {
@@ -35,7 +35,7 @@ const WRITE_FILE_DECLARATION = {
 
 export class GeminiProvider implements AIProvider {
   name = 'gemini';
-  displayName = 'Gemini 3 Pro';
+  displayName = 'Gemini 2.0 Flash';
 
   private ai: GoogleGenAI;
 

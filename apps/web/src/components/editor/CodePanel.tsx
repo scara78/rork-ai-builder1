@@ -28,6 +28,17 @@ export function CodePanel({ projectId }: CodePanelProps) {
   
   // Get all open files (for tabs)
   const openFiles = Object.values(files).slice(0, 5); // Limit to 5 tabs
+
+  const handleCloseTab = (closedPath: string) => {
+    if (closedPath !== activeFile) return; // closing an inactive tab has no effect in current model
+    // Activate the nearest other open file
+    const others = openFiles.filter(f => f.path !== closedPath);
+    if (others.length > 0) {
+      setActiveFile(others[0].path);
+    } else {
+      setActiveFile(null);
+    }
+  };
   
   if (!file) {
     return (
@@ -68,7 +79,7 @@ export function CodePanel({ projectId }: CodePanelProps) {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Could implement close tab logic here
+                  handleCloseTab(f.path);
                 }}
                 className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-[#27272a] rounded"
               >

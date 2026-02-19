@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { AgentPhase, AgentEvent, AppPlan } from '@ai-engine/core';
+import { getLanguageFromPath } from '@/lib/language';
 
 export interface AgentFile {
   path: string;
@@ -11,7 +12,7 @@ export interface AgentFile {
 
 export interface AgentMessage {
   id: string;
-  type: 'thinking' | 'tool_call' | 'tool_result' | 'file' | 'error' | 'complete';
+  type: 'thinking' | 'tool_call' | 'tool_result' | 'file' | 'error' | 'complete' | 'step' | 'system';
   content: string;
   timestamp: Date;
   tool?: string;
@@ -77,28 +78,8 @@ const PHASE_PROGRESS: Record<AgentPhase, number> = {
   error: 0,
 };
 
-function getLanguageFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'tsx':
-    case 'ts':
-      return 'typescript';
-    case 'jsx':
-    case 'js':
-      return 'javascript';
-    case 'json':
-      return 'json';
-    case 'css':
-      return 'css';
-    case 'md':
-      return 'markdown';
-    default:
-      return 'plaintext';
-  }
-}
-
 export const useAgentStore = create<AgentState>()(
-  immer((set, get) => ({
+  immer((set) => ({
     ...initialState,
     
     startAgent: () => set((state) => {
@@ -232,6 +213,78 @@ export const useAgentStore = create<AgentState>()(
             content: event.message || 'Thinking...',
             timestamp: new Date(),
           });
+          break;
+
+        case 'text_delta':
+          if (event.message) {
+            state.messages.push({
+              id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'thinking',
+              content: event.message,
+              timestamp: new Date(),
+            });
+          }
+          break;
+
+        case 'run_start':
+          state.isRunning = true;
+          state.messages.push({
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'system',
+            content: event.message || 'Agent started',
+            timestamp: new Date(),
+          });
+          break;
+
+        case 'run_finish':
+          state.isRunning = false;
+          state.currentTool = null;
+          break;
+
+        case 'iteration':
+          state.iterations = event.iteration || state.iterations;
+          break;
+
+        case 'plan_created':
+          if (event.plan) {
+            state.plan = event.plan;
+            for (const filePath of event.plan.fileTree) {
+              if (!state.files[filePath]) {
+                state.files[filePath] = {
+                  path: filePath,
+                  content: '',
+                  language: getLanguageFromPath(filePath),
+                  status: 'pending',
+                };
+              }
+            }
+          }
+          state.messages.push({
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'step',
+            content: event.message || 'Plan created',
+            timestamp: new Date(),
+          });
+          break;
+
+        case 'step_start':
+          state.messages.push({
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'step',
+            content: event.message || `Starting ${event.step || 'step'}`,
+            timestamp: new Date(),
+          });
+          break;
+
+        case 'step_finish':
+          if (event.message) {
+            state.messages.push({
+              id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'step',
+              content: event.message,
+              timestamp: new Date(),
+            });
+          }
           break;
           
         case 'tool_call':

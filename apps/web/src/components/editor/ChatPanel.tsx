@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, ChevronDown, ChevronRight, Sparkles, Image as ImageIcon, X, Bot, FileCode, RotateCcw, Code, Share2, AlertCircle, Mic, NotebookPen, Paperclip } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Send, Loader2, ChevronDown, ChevronRight, Sparkles, FileCode, Code, AlertCircle, Mic, NotebookPen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
@@ -22,43 +22,25 @@ interface ChatPanelProps {
   onViewCode?: (filePath?: string) => void;
 }
 
-interface ImageAttachment {
-  id: string;
-  preview: string; // data URL for preview
-  data: string; // base64 data without prefix
-  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
-  name: string;
-}
-
 export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
   const [input, setInput] = useState('');
-  const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [agentMode, setAgentMode] = useState(false); // Agent mode toggle
-  const [showModelMenu, setShowModelMenu] = useState(false); // Model dropdown
   const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({}); // Per-message file list collapse
   const [showErrorDetails, setShowErrorDetails] = useState(false); // Error details expand
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const modelMenuRef = useRef<HTMLDivElement>(null);
   
   const { 
     messages, 
     addMessage, 
     updateLastMessage,
-    isGenerating, 
-    setGenerating,
-    selectedModel,
-    setSelectedModel,
     files,
     applyGeneratedFiles,
-    addGeneratingFile,
     streamingContent,
     appendStreamingContent,
     setStreamingContent,
     runtimeErrors,
     clearRuntimeErrors,
+    selectedModel,
   } = useProjectStore();
   
   const {
@@ -67,152 +49,20 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
     startAgent,
     stopAgent,
     processEvent,
-    reset: resetAgent,
   } = useAgentStore();
   
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
-  
-  // Close model menu on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
-        setShowModelMenu(false);
-      }
-    };
-    if (showModelMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showModelMenu]);
-  
-  // Process file to base64
-  const processFile = useCallback((file: File): Promise<ImageAttachment | null> => {
-    return new Promise((resolve) => {
-      // Validate file type
-      const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-      if (!validTypes.includes(file.type)) {
-        console.warn('Invalid file type:', file.type);
-        resolve(null);
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        console.warn('File too large:', file.size);
-        resolve(null);
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        // Extract base64 data without the data URL prefix
-        const base64Data = dataUrl.split(',')[1];
-        
-        resolve({
-          id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          preview: dataUrl,
-          data: base64Data,
-          mediaType: file.type as ImageAttachment['mediaType'],
-          name: file.name,
-        });
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    });
-  }, []);
-  
-  // Handle file input change
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    
-    const newImages: ImageAttachment[] = [];
-    for (const file of Array.from(files)) {
-      const processed = await processFile(file);
-      if (processed) {
-        newImages.push(processed);
-      }
-    }
-    
-    setAttachedImages(prev => [...prev, ...newImages].slice(0, 4)); // Max 4 images
-    
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [processFile]);
-  
-  // Handle paste
-  useEffect(() => {
-    const handlePaste = async (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      
-      for (const item of Array.from(items)) {
-        if (item.type.startsWith('image/')) {
-          e.preventDefault();
-          const file = item.getAsFile();
-          if (file) {
-            const processed = await processFile(file);
-            if (processed) {
-              setAttachedImages(prev => [...prev, processed].slice(0, 4));
-            }
-          }
-          break;
-        }
-      }
-    };
-    
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
-  }, [processFile]);
-  
-  // Handle drag and drop
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-  
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-  
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = e.dataTransfer.files;
-    const newImages: ImageAttachment[] = [];
-    
-    for (const file of Array.from(files)) {
-      if (file.type.startsWith('image/')) {
-        const processed = await processFile(file);
-        if (processed) {
-          newImages.push(processed);
-        }
-      }
-    }
-    
-    setAttachedImages(prev => [...prev, ...newImages].slice(0, 4));
-  }, [processFile]);
-  
-  // Remove image
-  const removeImage = useCallback((id: string) => {
-    setAttachedImages(prev => prev.filter(img => img.id !== id));
-  }, []);
-  
+
   // Run Agent mode
   const handleAgentRun = async () => {
     if (!input.trim() || isAgentRunning) return;
     
     const prompt = input.trim();
     setInput('');
-    setAttachedImages([]);
+    setStreamingContent('');
     
     // Start agent tracking
     startAgent();
@@ -236,6 +86,7 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
           projectId,
           prompt,
           existingFiles,
+          model: selectedModel,
         }),
       });
       
@@ -248,6 +99,7 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
       
       let summaryContent = 'Building app...';
       const generatedFiles: Array<{ path: string; content: string; language: string }> = [];
+      const progressLines: string[] = [];
       
       if (reader) {
         let buffer = '';
@@ -271,7 +123,13 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
                 if (data.type === 'file_created' || data.type === 'file_updated') {
                   if (data.file) {
                     generatedFiles.push(data.file);
+                    progressLines.push(`${data.type === 'file_created' ? 'Created' : 'Updated'} ${data.file.path}`);
+                    appendStreamingContent(`- ${progressLines[progressLines.length - 1]}\n`);
                   }
+                } else if (data.type === 'text_delta' && data.message) {
+                  appendStreamingContent(data.message);
+                } else if ((data.type === 'step_start' || data.type === 'step_finish' || data.type === 'plan_created') && data.message) {
+                  appendStreamingContent(`\n${data.message}\n`);
                 } else if (data.type === 'agent_complete') {
                   summaryContent = data.summary || 'App built successfully!';
                   if (data.files && data.files.length > 0) {
@@ -290,6 +148,9 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
       
       // Update final message with file list
       const changedPaths = generatedFiles.map(f => f.path);
+      if (summaryContent === 'Building app...' && progressLines.length > 0) {
+        summaryContent = `Done. ${progressLines.length} changes applied.`;
+      }
       updateLastMessage(summaryContent, changedPaths);
       
       // Apply generated files
@@ -303,127 +164,12 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
       processEvent({ type: 'error', error: 'Agent run failed' });
     } finally {
       stopAgent();
+      setStreamingContent('');
     }
   };
   
-  // Regular chat send
   const handleSend = async () => {
-    if ((!input.trim() && attachedImages.length === 0) || isGenerating) return;
-    
-    // If agent mode, use agent handler
-    if (agentMode) {
-      handleAgentRun();
-      return;
-    }
-    
-    const rawPrompt = input.trim();
-    const prompt = rawPrompt;
-    const images = attachedImages.map(img => ({
-      type: 'base64' as const,
-      mediaType: img.mediaType,
-      data: img.data,
-    }));
-    
-    setInput('');
-    setAttachedImages([]);
-    setGenerating(true);
-    setStreamingContent('');
-    
-    // Add user message
-    const displayPrompt = rawPrompt;
-    const userContent = images.length > 0 
-      ? `${displayPrompt}${displayPrompt ? '\n' : ''}[${images.length} image${images.length > 1 ? 's' : ''} attached]`
-      : displayPrompt;
-    addMessage({ role: 'user', content: userContent });
-    
-    // Add placeholder for assistant
-    addMessage({ role: 'assistant', content: '', isStreaming: true });
-    
-    try {
-      // Build current files context
-      const currentFiles: Record<string, string> = {};
-      Object.values(files).forEach(f => {
-        currentFiles[f.path] = f.content;
-      });
-      
-      // Build conversation history (last 10 messages)
-      const conversationHistory = messages.slice(-10).map(m => ({
-        role: m.role,
-        content: m.content,
-      }));
-      
-      // Stream the response
-      const response = await fetch('/api/generate/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          prompt,
-          model: selectedModel,
-          currentFiles,
-          conversationHistory,
-          images: images.length > 0 ? images : undefined,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Generation failed');
-      }
-      
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      
-      let fullContent = '';
-      const generatedFiles: Array<{ path: string; content: string; language: string }> = [];
-      
-      if (reader) {
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? ''; // Keep incomplete last line for next chunk
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                if (data.type === 'text') {
-                  fullContent += data.content;
-                  appendStreamingContent(data.content);
-                } else if (data.type === 'file' && data.file) {
-                  generatedFiles.push(data.file);
-                  // Apply file immediately so preview updates in real-time
-                  addGeneratingFile(data.file);
-                } else if (data.type === 'error') {
-                  console.error('Stream error:', data.error);
-                }
-              } catch (e) {
-                console.warn('SSE parse error:', e);
-              }
-            }
-          }
-        }
-      }
-      
-      // Strip file blocks from message text, pass changed file paths
-      const cleanContent = stripFileBlocks(fullContent);
-      const changedPaths = generatedFiles.map(f => f.path);
-      updateLastMessage(
-        cleanContent || 'Project settings updated successfully',
-        changedPaths
-      );
-      
-    } catch (error) {
-      console.error('Chat error:', error);
-      updateLastMessage('Sorry, an error occurred. Please try again.');
-    } finally {
-      setGenerating(false);
-      setStreamingContent('');
-    }
+    await handleAgentRun();
   };
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -433,26 +179,10 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
     }
   };
   
-  const isLoading = isGenerating || isAgentRunning;
+  const isLoading = isAgentRunning;
   
   return (
-    <div 
-      className="h-full flex flex-col bg-[#0a0a0a]"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {/* Drag overlay */}
-      {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/90 border-2 border-dashed border-blue-500 rounded-lg">
-          <div className="text-center">
-            <ImageIcon className="w-12 h-12 mx-auto mb-2 text-blue-400" />
-            <p className="text-blue-400 font-medium">Drop images here</p>
-            <p className="text-sm text-gray-500 mt-1">PNG, JPG, GIF, WebP (max 5MB)</p>
-          </div>
-        </div>
-      )}
-      
+    <div className="h-full flex flex-col bg-[#0a0a0a]">
       {/* Agent Status */}
       {(isAgentRunning || agentPhase !== 'idle') && (
         <div className="p-2 border-b border-[#27272a]">
@@ -561,20 +291,12 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
                     {/* Action buttons - OUTSIDE file list, below message */}
                     {msg.filesChanged && msg.filesChanged.length > 0 && !msg.isStreaming && (
                       <div className="flex items-center gap-5 mt-3">
-                        <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors">
-                          <RotateCcw size={13} />
-                          <span>Restore</span>
-                        </button>
                         <button 
                           onClick={() => onViewCode?.(msg.filesChanged?.[0])}
                           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors"
                         >
                           <Code size={13} />
-                          <span>Code</span>
-                        </button>
-                        <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors">
-                          <Share2 size={13} />
-                          <span>Share</span>
+                          <span>View Code</span>
                         </button>
                       </div>
                     )}
@@ -630,30 +352,6 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
       
       {/* Input */}
       <div className="p-3 border-t border-[#27272a]">
-        {/* Image previews */}
-        {attachedImages.length > 0 && (
-          <div className="flex gap-2 mb-2 flex-wrap">
-            {attachedImages.map(img => (
-              <div 
-                key={img.id} 
-                className="relative group w-16 h-16 rounded-lg overflow-hidden border border-[#3f3f46] bg-[#18181b]"
-              >
-                <img 
-                  src={img.preview} 
-                  alt={img.name}
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  onClick={() => removeImage(img.id)}
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        
         <div className="relative bg-[#18181b] rounded-xl border border-[#27272a] p-3 focus-within:border-gray-500 transition-colors">
           <textarea
             ref={textareaRef}
@@ -666,7 +364,7 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
           />
           
           <div className="flex justify-between items-center mt-2 px-1">
-            {/* Left Group: Note + Attach */}
+            {/* Left: Note button */}
             <div className="flex items-center gap-3">
               <button
                 className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
@@ -674,81 +372,13 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
               >
                 <NotebookPen size={18} />
               </button>
-              
-              <div className="relative">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/gif,image/webp"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || attachedImages.length >= 4}
-                  className={`p-1 transition-colors ${
-                    attachedImages.length >= 4 
-                      ? 'text-gray-600 cursor-not-allowed' 
-                      : 'text-gray-500 hover:text-gray-300'
-                  }`}
-                  title={attachedImages.length >= 4 ? 'Max 4 images' : 'Attach image'}
-                >
-                  <Paperclip size={18} />
-                </button>
-              </div>
             </div>
 
-            {/* Center Group: Model Dropdown */}
-            <div className="relative" ref={modelMenuRef}>
-              <button
-                onClick={() => setShowModelMenu(!showModelMenu)}
-                className="flex items-center gap-2 bg-[#27272a] pl-3 pr-2.5 py-1.5 rounded-full text-gray-300 border border-[#3f3f46] hover:border-gray-500 transition-colors"
-              >
-                {selectedModel === 'gemini' ? (
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                ) : (
-                  <Bot className="w-4 h-4 text-purple-400" />
-                )}
-                <span className="font-medium text-[13px]">
-                  {selectedModel === 'gemini' ? 'Gemini 3 Pro' : 'Claude Sonnet 4'}
-                </span>
-                <ChevronDown size={14} className="text-gray-500" />
-              </button>
-              
-              {showModelMenu && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-[#18181b] border border-[#3f3f46] rounded-xl shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={() => { setSelectedModel('gemini'); setShowModelMenu(false); }}
-                    className={`w-full px-4 py-3 flex items-center gap-3 text-left text-sm hover:bg-[#27272a] transition-colors ${
-                      selectedModel === 'gemini' ? 'bg-[#27272a]/50' : ''
-                    }`}
-                  >
-                    <Sparkles size={16} className="text-blue-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className={`font-medium ${selectedModel === 'gemini' ? 'text-blue-400' : 'text-gray-200'}`}>Gemini 3 Pro</div>
-                      <div className="text-xs text-gray-500 mt-0.5">gemini-3-pro-preview</div>
-                    </div>
-                    {selectedModel === 'gemini' && <span className="text-blue-400 text-sm">&#10003;</span>}
-                  </button>
-                  <button
-                    onClick={() => { setSelectedModel('claude'); setShowModelMenu(false); }}
-                    className={`w-full px-4 py-3 flex items-center gap-3 text-left text-sm hover:bg-[#27272a] transition-colors border-t border-[#27272a] ${
-                      selectedModel === 'claude' ? 'bg-[#27272a]/50' : ''
-                    }`}
-                  >
-                    <Bot size={16} className="text-purple-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className={`font-medium ${selectedModel === 'claude' ? 'text-purple-400' : 'text-gray-200'}`}>Claude Sonnet 4</div>
-                      <div className="text-xs text-gray-500 mt-0.5">claude-sonnet-4-20250514</div>
-                    </div>
-                    {selectedModel === 'claude' && <span className="text-purple-400 text-sm">&#10003;</span>}
-                  </button>
-                </div>
-              )}
+            <div className="px-3 py-1.5 rounded-full text-xs text-gray-400 border border-[#3f3f46] bg-[#27272a]">
+              Agent Mode
             </div>
 
-            {/* Right Group: Mic + Send */}
+            {/* Right: Mic + Send */}
             <div className="flex items-center gap-2">
               <button
                 className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors opacity-50 cursor-not-allowed"
@@ -758,9 +388,9 @@ export function ChatPanel({ projectId, onViewCode }: ChatPanelProps) {
               </button>
               <button
                 onClick={handleSend}
-                disabled={isLoading || (!input.trim() && attachedImages.length === 0)}
+                disabled={isLoading || !input.trim()}
                 className={`p-2 rounded-lg transition-all ${
-                  (input.trim() || attachedImages.length > 0) && !isLoading
+                  input.trim() && !isLoading
                     ? 'bg-white text-black hover:bg-gray-200 shadow-md'
                     : 'text-gray-600 bg-[#27272a]'
                 }`}

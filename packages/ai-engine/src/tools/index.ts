@@ -65,6 +65,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
           description: 'Additional npm packages needed beyond Expo defaults',
           items: { type: 'string' },
         },
+        plan_steps: {
+          type: 'array',
+          description: 'Ordered implementation steps with short descriptions',
+          items: { type: 'string' },
+        },
       },
       required: ['app_name', 'app_type', 'features', 'screens', 'file_tree'],
     },
@@ -89,6 +94,65 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         },
       },
       required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'patch_file',
+    description: 'Patch part of an existing file by replacing one snippet with another snippet.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'File path to patch',
+        },
+        find: {
+          type: 'string',
+          description: 'Exact snippet to find in the file',
+        },
+        replace: {
+          type: 'string',
+          description: 'Replacement snippet',
+        },
+        description: {
+          type: 'string',
+          description: 'Brief reason for this patch',
+        },
+      },
+      required: ['path', 'find', 'replace'],
+    },
+  },
+  {
+    name: 'search_files',
+    description: 'Search project files for text to locate relevant code sections before editing.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Text to search for',
+        },
+        path_prefix: {
+          type: 'string',
+          description: 'Optional path prefix filter',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'verify_project',
+    description: 'Run verification checks (typecheck/lint/build) and return diagnostics.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        checks: {
+          type: 'array',
+          description: 'Checks to run in order',
+          items: { type: 'string' },
+        },
+      },
+      required: ['checks'],
     },
   },
   {
@@ -204,6 +268,9 @@ export const AGENT_TOOLS: ToolDefinition[] = [
 export type ToolName = 
   | 'create_plan' 
   | 'write_file' 
+  | 'patch_file'
+  | 'search_files'
+  | 'verify_project'
   | 'delete_file' 
   | 'read_file' 
   | 'list_files'
@@ -219,12 +286,29 @@ export interface CreatePlanInput {
   screens: string[];
   file_tree: string[];
   dependencies?: string[];
+  plan_steps?: string[];
 }
 
 export interface WriteFileInput {
   path: string;
   content: string;
   description?: string;
+}
+
+export interface PatchFileInput {
+  path: string;
+  find: string;
+  replace: string;
+  description?: string;
+}
+
+export interface SearchFilesInput {
+  query: string;
+  path_prefix?: string;
+}
+
+export interface VerifyProjectInput {
+  checks: Array<'typecheck' | 'lint' | 'build'>;
 }
 
 export interface DeleteFileInput {
@@ -259,6 +343,9 @@ export interface CompleteInput {
 export type ToolInput = 
   | CreatePlanInput 
   | WriteFileInput 
+  | PatchFileInput
+  | SearchFilesInput
+  | VerifyProjectInput
   | DeleteFileInput 
   | ReadFileInput 
   | ListFilesInput
@@ -273,6 +360,9 @@ export type ToolInput =
 export interface ToolExecutor {
   createPlan(input: CreatePlanInput): Promise<ToolResult>;
   writeFile(input: WriteFileInput): Promise<ToolResult>;
+  patchFile(input: PatchFileInput): Promise<ToolResult>;
+  searchFiles(input: SearchFilesInput): Promise<ToolResult>;
+  verifyProject(input: VerifyProjectInput): Promise<ToolResult>;
   deleteFile(input: DeleteFileInput): Promise<ToolResult>;
   readFile(input: ReadFileInput): Promise<ToolResult>;
   listFiles(input: ListFilesInput): Promise<ToolResult>;
@@ -294,6 +384,12 @@ export async function executeTool(
       return executor.createPlan(input as CreatePlanInput);
     case 'write_file':
       return executor.writeFile(input as WriteFileInput);
+    case 'patch_file':
+      return executor.patchFile(input as PatchFileInput);
+    case 'search_files':
+      return executor.searchFiles(input as SearchFilesInput);
+    case 'verify_project':
+      return executor.verifyProject(input as VerifyProjectInput);
     case 'delete_file':
       return executor.deleteFile(input as DeleteFileInput);
     case 'read_file':

@@ -1,11 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
+import { getLanguageFromPath } from '@/lib/language';
 import { 
-  RorkAgent, 
+  RorkAgent,
+  GeminiProvider,
   type ToolExecutor, 
   type ToolResult,
   type CreatePlanInput,
   type WriteFileInput,
+  type PatchFileInput,
+  type SearchFilesInput,
+  type VerifyProjectInput,
   type DeleteFileInput,
   type ReadFileInput,
   type ListFilesInput,
@@ -44,6 +49,7 @@ export async function POST(request: NextRequest) {
           projectId, 
           prompt,
           existingFiles = {},
+          model = 'claude',
         } = body;
         
         if (!projectId || !prompt) {
@@ -70,11 +76,14 @@ export async function POST(request: NextRequest) {
           return;
         }
         
-        // Get API key
-        const apiKey = process.env.ANTHROPIC_API_KEY;
+        // Get API key for the chosen model
+        const isGemini = model === 'gemini';
+        const apiKey = isGemini
+          ? process.env.GOOGLE_AI_API_KEY
+          : process.env.ANTHROPIC_API_KEY;
         if (!apiKey) {
           controller.enqueue(encoder.encode(
-            `data: ${JSON.stringify({ type: 'error', error: 'Claude API key not configured' })}\n\n`
+            `data: ${JSON.stringify({ type: 'error', error: isGemini ? 'Gemini API key not configured' : 'Claude API key not configured' })}\n\n`
           ));
           controller.close();
           return;
@@ -97,6 +106,7 @@ export async function POST(request: NextRequest) {
                   screens: input.screens,
                   fileTree: input.file_tree,
                   dependencies: input.dependencies || [],
+                  planSteps: input.plan_steps || [],
                 }
               })}\n\n`
             ));
@@ -119,6 +129,73 @@ export async function POST(request: NextRequest) {
               success: true,
               output: `File written: ${input.path}`,
             };
+          },
+
+          async patchFile(input: PatchFileInput): Promise<ToolResult> {
+            const current = projectFiles[input.path]?.content ?? existingFiles[input.path];
+
+            if (!current) {
+              return {
+                success: false,
+                error: `Cannot patch missing file: ${input.path}`,
+              };
+            }
+
+            if (!current.includes(input.find)) {
+              return {
+                success: false,
+                error: `Patch target not found in ${input.path}`,
+              };
+            }
+
+            const next = current.replace(input.find, input.replace);
+            projectFiles[input.path] = {
+              path: input.path,
+              content: next,
+              language: getLanguageFromPath(input.path),
+            };
+
+            return {
+              success: true,
+              output: `Patched ${input.path}`,
+            };
+          },
+
+          async searchFiles(input: SearchFilesInput): Promise<ToolResult> {
+            const all = collectAllFiles(projectFiles, existingFiles);
+            const matches: Array<{ path: string; line: number; snippet: string }> = [];
+
+            for (const [path, content] of Object.entries(all)) {
+              if (input.path_prefix && !path.startsWith(input.path_prefix)) continue;
+              const lines = content.split('\n');
+              for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes(input.query)) {
+                  matches.push({
+                    path,
+                    line: i + 1,
+                    snippet: lines[i].trim().slice(0, 180),
+                  });
+                }
+              }
+            }
+
+            if (matches.length === 0) {
+              return {
+                success: true,
+                output: 'No matches found',
+                data: { matches: [] },
+              };
+            }
+
+            return {
+              success: true,
+              output: matches.slice(0, 50).map((m) => `${m.path}:${m.line} ${m.snippet}`).join('\n'),
+              data: { matches: matches.slice(0, 200) },
+            };
+          },
+
+          async verifyProject(input: VerifyProjectInput): Promise<ToolResult> {
+            return runChecks(projectFiles, existingFiles, input.checks);
           },
           
           async deleteFile(input: DeleteFileInput): Promise<ToolResult> {
@@ -168,53 +245,42 @@ export async function POST(request: NextRequest) {
           },
           
           async runTest(input: RunTestInput): Promise<ToolResult> {
-            // Basic validation - in production this would run actual tests
-            const errors: string[] = [];
-            
-            if (input.check_type === 'typescript') {
-              // Check for basic TypeScript issues
-              for (const [path, file] of Object.entries(projectFiles)) {
-                const content = file.content;
-                
-                // Check for missing imports
-                if (content.includes('useState') && !content.includes("from 'react'")) {
-                  errors.push(`${path}: Missing React import for useState`);
-                }
-                
-                // Check for web elements
-                const webElements = ['<div', '<span', '<button>'];
-                for (const el of webElements) {
-                  if (content.includes(el)) {
-                    errors.push(`${path}: Using web element ${el} instead of React Native component`);
-                  }
-                }
-                
-                // Check for missing export
-                if (path.endsWith('.tsx') && !content.includes('export')) {
-                  errors.push(`${path}: Missing export statement`);
-                }
-              }
-            }
-            
-            if (errors.length > 0) {
-              return {
-                success: false,
-                error: errors.join('\n'),
-                data: { errors },
-              };
-            }
-            
-            return {
-              success: true,
-              output: `${input.check_type} check passed`,
-            };
+            const check =
+              input.check_type === 'typescript'
+                ? 'typecheck'
+                : input.check_type === 'runtime'
+                ? 'build'
+                : input.check_type;
+            return runChecks(projectFiles, existingFiles, [check]);
           },
           
           async fixError(input: FixErrorInput): Promise<ToolResult> {
-            // This tool is informational - the actual fix happens via write_file
+            // Validate the file exists so the agent knows what it's working with
+            const fileContent =
+              projectFiles[input.file_path]?.content ?? existingFiles[input.file_path];
+
+            if (!fileContent) {
+              return {
+                success: false,
+                error: `Cannot fix error: file not found: ${input.file_path}`,
+              };
+            }
+
+            // Return the current file content so the agent can patch it precisely
             return {
               success: true,
-              output: `Will fix: ${input.fix_description}`,
+              output: [
+                `Error in ${input.file_path}: ${input.error_message}`,
+                `Planned fix: ${input.fix_description}`,
+                `Current file content (${fileContent.split('\n').length} lines):`,
+                '---',
+                fileContent.slice(0, 3000), // cap to avoid huge context
+                fileContent.length > 3000 ? '... (truncated)' : '',
+                '---',
+                'Use patch_file or write_file to apply the fix.',
+              ]
+                .filter(Boolean)
+                .join('\n'),
             };
           },
           
@@ -236,23 +302,62 @@ export async function POST(request: NextRequest) {
           project_id: projectId,
           role: 'user',
           content: `[Agent Mode] ${prompt}`,
-          model: 'claude',
+          model,
         });
-        
-        // Create and run agent
-        const agent = new RorkAgent({
-          apiKey,
-          maxIterations: 15,
-          maxTokens: 16384,
-          onEvent: (event: AgentEvent) => {
-            controller.enqueue(encoder.encode(
-              `data: ${JSON.stringify(event)}\n\n`
-            ));
-          },
-        });
-        
-        const result = await agent.run(prompt, executor, existingFiles);
-        
+
+        let summaryContent: string;
+        let totalTokens = 0;
+
+        if (isGemini) {
+          // ── Gemini path: use GeminiProvider.streamCode (write_file tool loop) ──
+          const geminiProvider = new GeminiProvider(apiKey);
+          let fullText = '';
+
+          for await (const chunk of geminiProvider.streamCode({
+            prompt,
+            currentFiles: existingFiles,
+          })) {
+            if (chunk.type === 'text') {
+              fullText += chunk.content;
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify({ type: 'text_delta', message: chunk.content })}\n\n`
+              ));
+            } else if (chunk.type === 'file' && chunk.file) {
+              const { path, content, language } = chunk.file;
+              projectFiles[path] = { path, content, language };
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify({ type: 'file_created', file: chunk.file })}\n\n`
+              ));
+            } else if (chunk.type === 'done') {
+              totalTokens = (chunk.usage?.inputTokens ?? 0) + (chunk.usage?.outputTokens ?? 0);
+            } else if (chunk.type === 'error') {
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify({ type: 'error', error: chunk.error })}\n\n`
+              ));
+            }
+          }
+
+          summaryContent = fullText || `Generated ${Object.keys(projectFiles).length} files.`;
+        } else {
+          // ── Claude path: full RorkAgent with 11-tool agentic loop ──
+          const agent = new RorkAgent({
+            apiKey,
+            maxIterations: 15,
+            maxTokens: 16384,
+            onEvent: (event: AgentEvent) => {
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify(event)}\n\n`
+              ));
+            },
+          });
+
+          const result = await agent.run(prompt, executor, existingFiles);
+          totalTokens = result.usage.inputTokens + result.usage.outputTokens;
+          summaryContent = result.success
+            ? `Built ${result.files.length} files in ${result.iterations} iterations.\n\n${result.summary || ''}`
+            : `Agent failed: ${result.error}`;
+        }
+
         // Save all generated files to database
         if (Object.keys(projectFiles).length > 0) {
           for (const file of Object.values(projectFiles)) {
@@ -275,29 +380,22 @@ export async function POST(request: NextRequest) {
         }
         
         // Save assistant summary message
-        const summaryContent = result.success
-          ? `Built ${result.files.length} files in ${result.iterations} iterations.\n\n${result.summary || ''}`
-          : `Agent failed: ${result.error}`;
-          
         await supabase.from('messages').insert({
           project_id: projectId,
           role: 'assistant',
           content: summaryContent,
-          model: 'claude',
+          model,
           files_changed: Object.keys(projectFiles),
-          tokens_used: result.usage.inputTokens + result.usage.outputTokens,
+          tokens_used: totalTokens,
         });
         
         // Send final result
         controller.enqueue(encoder.encode(
           `data: ${JSON.stringify({ 
             type: 'agent_complete',
-            success: result.success,
+            success: true,
             files: Object.values(projectFiles),
-            summary: result.summary,
-            usage: result.usage,
-            iterations: result.iterations,
-            error: result.error,
+            summary: summaryContent,
           })}\n\n`
         ));
         
@@ -324,22 +422,67 @@ export async function POST(request: NextRequest) {
   });
 }
 
-function getLanguageFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'tsx':
-    case 'ts':
-      return 'typescript';
-    case 'jsx':
-    case 'js':
-      return 'javascript';
-    case 'json':
-      return 'json';
-    case 'css':
-      return 'css';
-    case 'md':
-      return 'markdown';
-    default:
-      return 'plaintext';
+function collectAllFiles(
+  projectFiles: Record<string, { path: string; content: string; language: string }>,
+  existingFiles: Record<string, string>
+): Record<string, string> {
+  const merged: Record<string, string> = { ...existingFiles };
+  for (const [path, file] of Object.entries(projectFiles)) {
+    merged[path] = file.content;
   }
+  return merged;
+}
+
+function runChecks(
+  projectFiles: Record<string, { path: string; content: string; language: string }>,
+  existingFiles: Record<string, string>,
+  checks: Array<'typecheck' | 'lint' | 'build'>
+): ToolResult {
+  const files = collectAllFiles(projectFiles, existingFiles);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  for (const [path, content] of Object.entries(files)) {
+    if (checks.includes('typecheck')) {
+      if ((content.includes('useState(') || content.includes('useEffect(')) && !content.includes("from 'react'")) {
+        errors.push(`${path}: missing React import for hooks`);
+      }
+
+      if (path.endsWith('.tsx') && content.includes('export default') && content.includes('any')) {
+        warnings.push(`${path}: contains any type in exported component`);
+      }
+    }
+
+    if (checks.includes('lint')) {
+      if (/TODO|FIXME/.test(content)) {
+        warnings.push(`${path}: contains TODO/FIXME markers`);
+      }
+      if (path.endsWith('.tsx') && content.includes('<div')) {
+        errors.push(`${path}: uses <div> which is invalid in React Native code`);
+      }
+    }
+
+    if (checks.includes('build')) {
+      if ((path.endsWith('.tsx') || path.endsWith('.ts')) && !content.includes('export')) {
+        warnings.push(`${path}: file has no export`);
+      }
+      if (path.endsWith('.tsx') && !/\breturn\s*\(/.test(content) && !content.includes('export default function')) {
+        warnings.push(`${path}: component may not return JSX`);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      success: false,
+      error: errors.join('\n'),
+      data: { errors, warnings, checks },
+    };
+  }
+
+  return {
+    success: true,
+    output: `${checks.join(', ')} checks passed`,
+    data: { warnings, checks },
+  };
 }

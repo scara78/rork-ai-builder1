@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "build:web": "turbo run build --filter=web",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
+    "typecheck": "turbo run type-check",
     "dev:web": "turbo run dev --filter=web",
-    "dev:preview": "turbo run dev --filter=preview-server"
+    "dev:preview": "node -e \"console.log('Preview server package was removed. Use in-browser Snack preview with pnpm dev:web.');\""
   },
   "devDependencies": {
     "turbo": "^2.8.3",

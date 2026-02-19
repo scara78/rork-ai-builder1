@@ -25,10 +25,8 @@ export {
 
 // Agent
 export * from './tools';
-export * from './agent-prompts';
 export { 
   RorkAgent,
-  runAgentStream,
   type AgentPhase,
   type AgentEvent,
   type AgentEventType,
@@ -36,13 +34,6 @@ export {
   type AgentResult,
   type AppPlan,
 } from './agent';
-
-// Templates
-export {
-  getScaffold,
-  getComponentTemplate,
-  type AppScaffold,
-} from './templates';
 
 
 // Types
