@@ -388,7 +388,17 @@ export async function POST(request: NextRequest) {
             : `Agent failed: ${result.error}`;
         }
 
-        // Save all generated files to database
+        // Send final result FIRST so UI updates immediately
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ 
+            type: 'agent_complete',
+            success: true,
+            files: Object.values(projectFiles),
+            summary: summaryContent,
+          })}\n\n`
+        ));
+
+        // Save all generated files to database AFTER sending the event
         if (Object.keys(projectFiles).length > 0) {
           for (const file of Object.values(projectFiles)) {
             await supabase
@@ -418,16 +428,6 @@ export async function POST(request: NextRequest) {
           files_changed: Object.keys(projectFiles),
           tokens_used: totalTokens,
         });
-        
-        // Send final result
-        controller.enqueue(encoder.encode(
-          `data: ${JSON.stringify({ 
-            type: 'agent_complete',
-            success: true,
-            files: Object.values(projectFiles),
-            summary: summaryContent,
-          })}\n\n`
-        ));
         
         controller.close();
         
@@ -474,7 +474,7 @@ function runChecks(
 
   for (const [path, content] of Object.entries(files)) {
     if (checks.includes('typecheck')) {
-      if ((content.includes('useState(') || content.includes('useEffect(')) && !content.includes("from 'react'")) {
+      if ((content.includes('useState') || content.includes('useEffect')) && !content.includes("from 'react'") && !content.includes('from "react"')) {
         errors.push(`${path}: missing React import for hooks`);
       }
 
@@ -487,8 +487,8 @@ function runChecks(
       if (/TODO|FIXME/.test(content)) {
         warnings.push(`${path}: contains TODO/FIXME markers`);
       }
-      if (path.endsWith('.tsx') && content.includes('<div')) {
-        errors.push(`${path}: uses <div> which is invalid in React Native code`);
+      if (path.endsWith('.tsx') && (content.includes('<div') || content.includes('<span') || content.includes('<p>') || content.includes('<a '))) {
+        errors.push(`${path}: uses web HTML tags (div, span, p, a) which are invalid in React Native code. Use View, Text, etc.`);
       }
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useDeferredValue } from 'react';
 import { Send, Loader2, ChevronDown, ChevronRight, Sparkles, FileCode, Code, AlertCircle, Mic, NotebookPen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useProjectStore } from '@/stores/projectStore';
@@ -27,6 +27,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
   const [input, setInput] = useState('');
   const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({}); // Per-message file list collapse
   const [showErrorDetails, setShowErrorDetails] = useState(false); // Error details expand
+  const [retryPrompt, setRetryPrompt] = useState<string | null>(null); // For handling agent failures
   const handleAgentRunRef = useRef<(prompt?: string) => Promise<void>>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -45,6 +46,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
     clearRuntimeErrors,
     selectedModel,
   } = useProjectStore();
+  
+  const deferredStreamingContent = useDeferredValue(streamingContent);
   
   const {
     isRunning: isAgentRunning,
@@ -68,6 +71,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
     const prompt = promptText;
     setInput('');
     setStreamingContent('');
+    setRetryPrompt(null);
     
     // Start agent tracking
     startAgent();
@@ -179,6 +183,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
       console.error('Agent error:', errMsg);
       updateLastMessage(`Error: ${errMsg}\n\nPlease check your API key configuration and try again.`);
       processEvent({ type: 'error', error: errMsg });
+      setRetryPrompt(prompt); // Allow user to retry
     } finally {
       stopAgent();
       setStreamingContent('');
@@ -261,8 +266,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
                     {/* Message text */}
                     {msg.isStreaming && isLoading ? (
                       <div className="text-gray-300 leading-relaxed text-[13px]">
-                        {stripFileBlocks(streamingContent) ? (
-                          <div className="chat-markdown"><ReactMarkdown>{stripFileBlocks(streamingContent)}</ReactMarkdown></div>
+                        {stripFileBlocks(deferredStreamingContent) ? (
+                          <div className="chat-markdown"><ReactMarkdown>{stripFileBlocks(deferredStreamingContent)}</ReactMarkdown></div>
                         ) : (
                           <span className="flex items-center gap-2 text-gray-500">
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -384,6 +389,19 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
               ))}
             </div>
           )}
+        </div>
+      )}
+      
+      {/* Retry Prompt */}
+      {retryPrompt && !isAgentRunning && (
+        <div className="mx-3 mb-2 flex justify-center">
+          <button
+            onClick={() => handleAgentRun(retryPrompt)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors text-xs font-medium"
+          >
+            <AlertCircle size={14} />
+            Retry last prompt
+          </button>
         </div>
       )}
       

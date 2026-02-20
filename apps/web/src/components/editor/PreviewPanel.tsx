@@ -112,15 +112,11 @@ const styles = StyleSheet.create({
 `;
 
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
-  const { files } = useProjectStore();
-  const { isRunning: isAgentRunning, files: agentFiles } = useAgentStore();
+  const { files, generatingFiles } = useProjectStore();
+  const { isRunning: isAgentRunning } = useAgentStore();
 
-  // Derive building state from the agent store (projectStore.isGenerating is never set by ChatPanel)
+  // Derive building state from the agent store
   const isGenerating = isAgentRunning;
-  // Files the agent has created so far (for the building overlay progress list)
-  const generatingFiles = Object.keys(agentFiles).filter(
-    (p) => agentFiles[p].status === 'created' || agentFiles[p].status === 'updated'
-  );
 
   // Determine if the project has real files (not just the default fallback)
   const hasRealFiles = Object.keys(files).length > 0;
@@ -167,7 +163,14 @@ import 'expo-router/entry';
     return transformed;
   }, [files]);
 
-  const dependencies = useMemo(() => extractDependencies(files), [files]);
+  const packageJsonContent = useMemo(() => {
+    const file = Object.values(files).find(f => f.path === 'package.json' || f.path === '/package.json');
+    return file?.content || '{}';
+  }, [files]);
+
+  const dependencies = useMemo(() => extractDependencies({
+    'package.json': { path: 'package.json', content: packageJsonContent }
+  }), [packageJsonContent]);
 
   // === SNACK LIFECYCLE ===
   //
