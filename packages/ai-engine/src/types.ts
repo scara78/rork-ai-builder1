@@ -13,6 +13,7 @@ export interface GenerateParams {
   conversationHistory?: ConversationMessage[];
   maxTokens?: number;
   images?: ImageAttachment[];
+  agentMode?: 'plan' | 'build';
 }
 
 export interface ImageAttachment {

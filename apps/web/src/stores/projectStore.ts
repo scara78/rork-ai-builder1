@@ -34,6 +34,7 @@ interface ProjectState {
   messages: UIMessage[];
   isGenerating: boolean;
   selectedModel: 'claude' | 'gemini';
+  agentMode: 'plan' | 'build';
   streamingContent: string;
   generatingFiles: string[]; // File paths being generated in real-time
   runtimeErrors: RuntimeError[];
@@ -50,6 +51,7 @@ interface ProjectState {
   setMessages: (messages: UIMessage[]) => void;
   setGenerating: (value: boolean) => void;
   setSelectedModel: (model: 'claude' | 'gemini') => void;
+  setAgentMode: (mode: 'plan' | 'build') => void;
   setStreamingContent: (content: string) => void;
   appendStreamingContent: (content: string) => void;
   addGeneratingFile: (file: { path: string; content: string; language?: string }) => void;
@@ -67,6 +69,7 @@ const initialState = {
   messages: [],
   isGenerating: false,
   selectedModel: 'gemini' as const,
+  agentMode: 'build' as const,
   streamingContent: '',
   generatingFiles: [] as string[],
   runtimeErrors: [] as RuntimeError[],
@@ -150,6 +153,10 @@ export const useProjectStore = create<ProjectState>()(
     
     setSelectedModel: (model) => set((state) => {
       state.selectedModel = model;
+    }),
+    
+    setAgentMode: (mode) => set((state) => {
+      state.agentMode = mode;
     }),
     
     setStreamingContent: (content) => set((state) => {

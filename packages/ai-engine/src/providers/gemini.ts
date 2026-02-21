@@ -168,9 +168,14 @@ export class GeminiProvider implements AIProvider {
       currentFiles,
       conversationHistory = [],
       maxTokens = 65536,
+      agentMode = 'build',
     } = params;
 
-    const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
+    let fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
+
+    if (agentMode === 'plan') {
+      fullSystemPrompt += '\n\nIMPORTANT: You are currently in PLAN MODE. You MUST ONLY use the `create_plan` tool to define the app structure and then immediately use the `complete` tool. Do NOT use the `write_file` tool to write any code in this mode. Your job is ONLY to plan.';
+    }
 
     let userContent = prompt;
     if (currentFiles && Object.keys(currentFiles).length > 0) {
@@ -223,15 +228,17 @@ export class GeminiProvider implements AIProvider {
         if (!functionCalls || functionCalls.length === 0) {
           // Model stopped without calling any tool
           // Check if there are remaining files to write
-          const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
+          if (agentMode === 'build') {
+            const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
 
-          if (remainingFiles.length > 0) {
-            // Inject continuation prompt and resume
-            const continuationMsg = buildContinuationPrompt(remainingFiles);
-            yield { type: 'text', content: `\n[Continuing: ${remainingFiles.length} files remaining...]\n` };
-            response = await chat.sendMessage({ message: continuationMsg });
-            apiCallCount++;
-            continue;
+            if (remainingFiles.length > 0) {
+              // Inject continuation prompt and resume
+              const continuationMsg = buildContinuationPrompt(remainingFiles);
+              yield { type: 'text', content: `\n[Continuing: ${remainingFiles.length} files remaining...]\n` };
+              response = await chat.sendMessage({ message: continuationMsg });
+              apiCallCount++;
+              continue;
+            }
           }
 
           // No plan or all files written but complete not called — auto-complete
@@ -265,17 +272,31 @@ export class GeminiProvider implements AIProvider {
             };
 
             yield { type: 'plan', plan: planData };
-            yield { type: 'phase', phase: 'coding' };
-
-            functionResponseParts.push({
-              functionResponse: {
-                name: 'create_plan',
-                response: {
-                  success: true,
-                  message: `Plan created for ${args.app_name} with ${planFileTree.length} files. Now call write_file for EACH file in the plan, then call complete when done.`,
+            
+            if (agentMode === 'plan') {
+              // Just finish planning
+              functionResponseParts.push({
+                functionResponse: {
+                  name: 'create_plan',
+                  response: {
+                    success: true,
+                    message: `Plan created successfully. Now call the complete tool with a summary.`,
+                  },
                 },
-              },
-            });
+              });
+            } else {
+              yield { type: 'phase', phase: 'coding' };
+
+              functionResponseParts.push({
+                functionResponse: {
+                  name: 'create_plan',
+                  response: {
+                    success: true,
+                    message: `Plan created for ${args.app_name} with ${planFileTree.length} files. Now call write_file for EACH file in the plan, then call complete when done.`,
+                  },
+                },
+              });
+            }
           } else if (fc.name === 'write_file' && fc.args) {
             const args = fc.args as { path: string; content: string };
             if (args.path && args.content) {
@@ -327,7 +348,7 @@ export class GeminiProvider implements AIProvider {
         if (isComplete) break;
 
         // After processing all calls in this batch, check if plan is fulfilled
-        if (planFileTree.length > 0) {
+        if (agentMode === 'build' && planFileTree.length > 0) {
           const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
           if (remainingFiles.length === 0 && !isComplete) {
             // All plan files written — auto-complete
@@ -335,6 +356,11 @@ export class GeminiProvider implements AIProvider {
             yield { type: 'phase', phase: 'complete' };
             break;
           }
+        } else if (agentMode === 'plan' && planFileTree.length > 0 && !isComplete) {
+           // We just wanted a plan, so we can auto-complete now
+           isComplete = true;
+           yield { type: 'phase', phase: 'complete' };
+           break;
         }
 
         // Send function responses and continue loop

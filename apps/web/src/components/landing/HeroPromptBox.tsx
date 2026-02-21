@@ -28,6 +28,7 @@ export function HeroPromptBox() {
   const router = useRouter();
   const [prompt, setPrompt] = useState('');
   const [step, setStep] = useState<BuildStep>('idle');
+  const [agentMode, setAgentMode] = useState<'plan' | 'build'>('build');
 
   const isLoading = step !== 'idle';
 
@@ -43,6 +44,7 @@ export function HeroPromptBox() {
 
       if (!user) {
         sessionStorage.setItem('rork_pending_prompt', text);
+        sessionStorage.setItem('rork_agent_mode', agentMode);
         router.push('/signup');
         return;
       }
@@ -60,6 +62,7 @@ export function HeroPromptBox() {
 
       if (!res.ok) {
         sessionStorage.setItem('rork_pending_prompt', text);
+        sessionStorage.setItem('rork_agent_mode', agentMode);
         router.push('/dashboard');
         return;
       }
@@ -68,6 +71,7 @@ export function HeroPromptBox() {
 
       setStep('opening');
       sessionStorage.setItem('rork_pending_prompt', text);
+      sessionStorage.setItem('rork_agent_mode', agentMode);
 
       // Brief pause so user sees the step
       await new Promise(r => setTimeout(r, 400));
@@ -76,6 +80,7 @@ export function HeroPromptBox() {
       router.push(`/editor/${project.id}`);
     } catch {
       sessionStorage.setItem('rork_pending_prompt', prompt.trim());
+      sessionStorage.setItem('rork_agent_mode', agentMode);
       router.push('/signup');
     }
   };
@@ -113,6 +118,26 @@ export function HeroPromptBox() {
             >
               <Sparkles className="h-4 w-4" />
             </button>
+            <div className="flex items-center rounded-full bg-zinc-800 p-1">
+              <button
+                onClick={() => setAgentMode('plan')}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  agentMode === 'plan' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                disabled={isLoading}
+              >
+                Plan
+              </button>
+              <button
+                onClick={() => setAgentMode('build')}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  agentMode === 'build' ? 'bg-white text-black' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                disabled={isLoading}
+              >
+                Build
+              </button>
+            </div>
             <Link
               href="/demo"
               className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-700"

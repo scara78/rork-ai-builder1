@@ -140,7 +140,8 @@ export class RorkAgent {
   async run(
     prompt: string,
     executor: ToolExecutor,
-    existingFiles?: Record<string, string>
+    existingFiles?: Record<string, string>,
+    agentMode: 'plan' | 'build' = 'build'
   ): Promise<AgentResult> {
     this.reset();
     
@@ -164,7 +165,7 @@ export class RorkAgent {
       });
 
       // Build the agent system prompt
-      const systemPrompt = this.buildSystemPrompt();
+      const systemPrompt = this.buildSystemPrompt(agentMode);
       
       // Start the agent loop
       let messages: Anthropic.MessageParam[] = [
@@ -261,6 +262,11 @@ export class RorkAgent {
               };
               // NOTE: plan_created SSE is emitted by the executor (route.ts createPlan).
               // Do NOT emit plan_created here to avoid sending the event twice.
+              
+              if (agentMode === 'plan') {
+                // If in plan mode, we can inject a specific message to tell it to complete
+                result.output = 'Plan created successfully. You are in PLAN MODE. Now immediately call the complete tool with a summary. Do not write any code.';
+              }
             } else if (toolName === 'write_file') {
               const writeInput = toolInput as WriteFileInput;
               const fileExists = this.files.has(writeInput.path);
@@ -358,8 +364,8 @@ export class RorkAgent {
   /**
    * Build the system prompt for the agent
    */
-  private buildSystemPrompt(): string {
-    return `${FULL_SYSTEM_PROMPT}
+  private buildSystemPrompt(agentMode: 'plan' | 'build'): string {
+    const basePrompt = `${FULL_SYSTEM_PROMPT}
 
 ## Agent Instructions
 
@@ -394,6 +400,12 @@ You have access to tools that let you plan, create files, patch files, verify, a
 6. Constants and types
 
 When you're done building, call the complete tool with a summary.`;
+
+    if (agentMode === 'plan') {
+      return `${basePrompt}\n\nCRITICAL: You are currently in PLAN MODE. You MUST ONLY use the \`create_plan\` tool to define the app structure, and then immediately use the \`complete\` tool. Do NOT use \`write_file\`, \`patch_file\`, or any other tool to write code. Your ONLY job is to plan.`;
+    }
+
+    return basePrompt;
   }
 
   /**

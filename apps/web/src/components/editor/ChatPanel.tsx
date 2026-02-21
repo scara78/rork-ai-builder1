@@ -45,6 +45,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
     runtimeErrors,
     clearRuntimeErrors,
     selectedModel,
+    agentMode,
+    setAgentMode,
   } = useProjectStore();
   
   const deferredStreamingContent = useDeferredValue(streamingContent);
@@ -77,8 +79,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
     startAgent();
     
     // Add user message
-    addMessage({ role: 'user', content: `[Agent Mode] ${prompt}` });
-    addMessage({ role: 'assistant', content: 'Starting autonomous build...', isStreaming: true });
+    addMessage({ role: 'user', content: `[${agentMode === 'plan' ? 'Plan' : 'Agent'} Mode] ${prompt}` });
+    addMessage({ role: 'assistant', content: agentMode === 'plan' ? 'Planning app structure...' : 'Starting autonomous build...', isStreaming: true });
     
     try {
       // Build current files context
@@ -96,6 +98,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
           prompt,
           existingFiles,
           model: selectedModel,
+          agentMode,
         }),
       });
       
@@ -429,8 +432,25 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
               </button>
             </div>
 
-            <div className="px-3 py-1.5 rounded-full text-xs text-gray-400 border border-[#3f3f46] bg-[#27272a]">
-              Agent Mode
+            <div className="flex items-center rounded-full bg-zinc-800 p-0.5">
+              <button
+                onClick={() => setAgentMode('plan')}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  agentMode === 'plan' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                disabled={isLoading}
+              >
+                Plan
+              </button>
+              <button
+                onClick={() => setAgentMode('build')}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  agentMode === 'build' ? 'bg-white text-black' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                disabled={isLoading}
+              >
+                Build
+              </button>
             </div>
 
             {/* Right: Mic + Send */}

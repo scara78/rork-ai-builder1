@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
           prompt,
           existingFiles = {},
           model = 'claude',
+          agentMode = 'build',
         } = body;
         
         if (!projectId || !prompt) {
@@ -301,7 +302,7 @@ export async function POST(request: NextRequest) {
         await supabase.from('messages').insert({
           project_id: projectId,
           role: 'user',
-          content: `[Agent Mode] ${prompt}`,
+          content: `[${agentMode === 'plan' ? 'Plan' : 'Agent'} Mode] ${prompt}`,
           model,
         });
 
@@ -316,6 +317,7 @@ export async function POST(request: NextRequest) {
           for await (const chunk of geminiProvider.streamCode({
             prompt,
             currentFiles: existingFiles,
+            agentMode,
           })) {
             if (chunk.type === 'text') {
               fullText += chunk.content;
@@ -381,7 +383,7 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          const result = await agent.run(prompt, executor, existingFiles);
+          const result = await agent.run(prompt, executor, existingFiles, agentMode);
           totalTokens = result.usage.inputTokens + result.usage.outputTokens;
           summaryContent = result.success
             ? `Built ${result.files.length} files in ${result.iterations} iterations.\n\n${result.summary || ''}`

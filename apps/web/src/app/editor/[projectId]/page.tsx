@@ -34,7 +34,7 @@ export default function EditorPage() {
   const [connectedDevices, setConnectedDevices] = useState(0);
   const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
   
-  const { setProject, files, setActiveFile } = useProjectStore();
+  const { setProject, files, setActiveFile, setAgentMode } = useProjectStore();
   const { showToast } = useToast();
 
   // Auto-save dirty files every 2 seconds after changes
@@ -44,12 +44,19 @@ export default function EditorPage() {
   useEffect(() => {
     if (!loading) {
       const pending = sessionStorage.getItem('rork_pending_prompt');
+      const savedMode = sessionStorage.getItem('rork_agent_mode') as 'plan' | 'build';
+      
+      if (savedMode === 'plan' || savedMode === 'build') {
+        setAgentMode(savedMode);
+        sessionStorage.removeItem('rork_agent_mode');
+      }
+      
       if (pending) {
         sessionStorage.removeItem('rork_pending_prompt');
         setInitialPrompt(pending);
       }
     }
-  }, [loading]);
+  }, [loading, setAgentMode]);
 
   // Keyboard shortcut for command palette (Cmd+K / Ctrl+K)
   useEffect(() => {
