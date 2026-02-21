@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Circle } from 'lucide-react';
 import { HeroPromptBox } from '@/components/landing/HeroPromptBox';
+import { HeaderAuth } from '@/components/layout/HeaderAuth';
 
 export default function HomePage() {
   return (
@@ -18,14 +19,7 @@ export default function HomePage() {
             <a href="#" className="transition-colors hover:text-zinc-100">Pricing</a>
           </nav>
 
-          <div className="flex items-center gap-2">
-            <Link href="/login" className="rounded-lg px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-accent hover:text-white">
-              Sign in
-            </Link>
-            <Link href="/signup" className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-black transition-colors hover:bg-zinc-200">
-              Start
-            </Link>
-          </div>
+          <HeaderAuth />
         </div>
       </header>
 
