@@ -385,6 +385,7 @@ ONLY use packages from this exact list. Using any other package will cause a 500
 - **react-native-svg** — not bundled in Snack SDK 54
 - **react-native-maps** — requires native build
 - **@shopify/flash-list** — not in Snack
+- **react-native-deck-swiper**, **react-native-swiper**, **react-native-snap-carousel** — NOT IN SNACK! For Dating App swipe cards or carousels, you MUST build them from scratch using \`PanResponder\`, \`react-native-reanimated\`, or \`FlatList\`.
 - Any icon library except **@expo/vector-icons**
 
 ### Icons: ALWAYS use Ionicons from @expo/vector-icons

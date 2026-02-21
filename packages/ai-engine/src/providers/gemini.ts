@@ -121,7 +121,7 @@ function buildContinuationPrompt(remainingFiles: string[]): string {
     '',
     ...remainingFiles.map((f) => `- ${f}`),
     '',
-    'Continue by calling write_file for each of these files. When ALL files are written, call the complete tool.',
+    'Continue by calling write_file for 1-3 of these files. We will loop until all files are written. Do NOT try to write all of them at once.',
     'Do NOT stop or explain — just call write_file immediately.',
   ].join('\n');
 }
@@ -330,17 +330,34 @@ export class GeminiProvider implements AIProvider {
               });
             }
           } else if (fc.name === 'complete' && fc.args) {
-            isComplete = true;
-            yield { type: 'phase', phase: 'complete' };
+            // Check if there are still files to write
+            const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
+            
+            if (agentMode === 'build' && remainingFiles.length > 0) {
+              // REJECT the complete call if files are missing
+              functionResponseParts.push({
+                functionResponse: {
+                  name: 'complete',
+                  response: { 
+                    success: false, 
+                    error: `You cannot call complete yet. You have ${remainingFiles.length} files left to write from your plan: ${remainingFiles.join(', ')}. Call write_file for these remaining files immediately.` 
+                  },
+                },
+              });
+              // Do NOT set isComplete = true, force it to continue the loop
+            } else {
+              isComplete = true;
+              yield { type: 'phase', phase: 'complete' };
 
-            functionResponseParts.push({
-              functionResponse: {
-                name: 'complete',
-                response: { success: true },
-              },
-            });
-            // Don't send function response — we're done
-            break;
+              functionResponseParts.push({
+                functionResponse: {
+                  name: 'complete',
+                  response: { success: true },
+                },
+              });
+              // Don't send function response — we're done
+              break;
+            }
           }
         }
 

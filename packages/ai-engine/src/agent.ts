@@ -233,7 +233,7 @@ export class RorkAgent {
             this.updatePhaseFromTool(toolName);
 
             // Execute tool
-            const result = await executeTool(executor, toolName, toolInput);
+            let result = await executeTool(executor, toolName, toolInput);
 
             this.emit({
               type: 'tool_result',
@@ -291,12 +291,25 @@ export class RorkAgent {
               }
             } else if (toolName === 'complete') {
               const completeInput = toolInput as CompleteInput;
-              this.phase = 'complete';
-              this.emit({
-                type: 'complete',
-                summary: completeInput.summary,
-                filesCreated: completeInput.files_created,
-              });
+              
+              let canComplete = true;
+              if (this.plan && agentMode === 'build') {
+                const remainingFiles = this.plan.fileTree.filter(f => !this.files.has(f));
+                if (remainingFiles.length > 0) {
+                  canComplete = false;
+                  result.success = false;
+                  result.error = `You cannot call complete yet. You have ${remainingFiles.length} files left to write from your plan: ${remainingFiles.join(', ')}. Call write_file for these remaining files immediately.`;
+                }
+              }
+
+              if (canComplete) {
+                this.phase = 'complete';
+                this.emit({
+                  type: 'complete',
+                  summary: completeInput.summary,
+                  filesCreated: completeInput.files_created,
+                });
+              }
             }
 
             toolResults.push({
