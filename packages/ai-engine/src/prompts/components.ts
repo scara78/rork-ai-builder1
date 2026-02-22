@@ -1,90 +1,82 @@
 /**
  * Component Patterns for React Native Web + Vite (Sandpack)
- * Ionicons, Image, Native Controls
+ * lucide-react-native, Image, Native Controls
  */
 
-export const SF_SYMBOLS = `## Icons (@expo/vector-icons - Ionicons)
+export const SF_SYMBOLS = `## Icons (lucide-react-native)
 
-Use Ionicons from @expo/vector-icons for app icons. This is the icon library available in the Sandpack/Vite environment.
+Use \`lucide-react-native\` for app icons. This is the icon library available in the Vite environment.
 
 ### Basic Usage
 \`\`\`tsx
-import { Ionicons } from '@expo/vector-icons';
+import { Home, Heart, Settings, User } from 'lucide-react-native';
 
-<Ionicons name="home" size={24} color="#fff" />
-<Ionicons name="home-outline" size={24} color="#8e8e93" />
+<Home size={24} color="#fff" />
 \`\`\`
 
 ### Icon in Pressable
 \`\`\`tsx
 <Pressable onPress={handlePress} style={{ padding: 8 }}>
-  <Ionicons name="heart" size={24} color="#FF3B30" />
+  <Heart size={24} color="#FF3B30" />
 </Pressable>
 \`\`\`
 
-### Common Ionicons Names
+### Common Lucide Icons
 
 **Navigation & Actions:**
-- \`home\` / \`home-outline\`
-- \`settings\` / \`settings-outline\`
-- \`search\` / \`search-outline\`
-- \`add\` / \`add-circle\` / \`add-circle-outline\`
-- \`close\` / \`close-circle\`
-- \`chevron-back\` / \`chevron-forward\`
-- \`arrow-back\` / \`arrow-forward\`
-- \`menu\` / \`ellipsis-horizontal\` / \`ellipsis-vertical\`
+- \`Home\`
+- \`Settings\`
+- \`Search\`
+- \`Plus\` / \`PlusCircle\`
+- \`X\` / \`XCircle\`
+- \`ChevronLeft\` / \`ChevronRight\`
+- \`ArrowLeft\` / \`ArrowRight\`
+- \`Menu\` / \`MoreHorizontal\` / \`MoreVertical\`
 
 **Media:**
-- \`play\` / \`pause\` / \`stop\`
-- \`volume-high\` / \`volume-mute\`
-- \`camera\` / \`camera-outline\`
-- \`image\` / \`image-outline\`
-- \`mic\` / \`mic-outline\`
-- \`musical-notes\`
+- \`Play\` / \`Pause\` / \`Square\`
+- \`Volume2\` / \`VolumeX\`
+- \`Camera\`
+- \`Image\`
+- \`Mic\`
+- \`Music\`
 
 **Social:**
-- \`heart\` / \`heart-outline\`
-- \`star\` / \`star-outline\`
-- \`thumbs-up\` / \`thumbs-down\`
-- \`person\` / \`person-outline\`
-- \`people\` / \`people-outline\`
-- \`chatbubble\` / \`chatbubble-outline\`
+- \`Heart\`
+- \`Star\`
+- \`ThumbsUp\` / \`ThumbsDown\`
+- \`User\`
+- \`Users\`
+- \`MessageCircle\`
 
 **Content Actions:**
-- \`share\` / \`share-outline\`
-- \`download\` / \`download-outline\`
-- \`copy\` / \`copy-outline\`
-- \`trash\` / \`trash-outline\`
-- \`pencil\` / \`create-outline\`
-- \`bookmark\` / \`bookmark-outline\`
+- \`Share\` / \`Share2\`
+- \`Download\`
+- \`Copy\`
+- \`Trash\` / \`Trash2\`
+- \`Edit\` / \`Edit2\` / \`Pen\`
+- \`Bookmark\`
 
 **Status:**
-- \`checkmark\` / \`checkmark-circle\`
-- \`close-circle\` / \`alert-circle\`
-- \`warning\` / \`information-circle\`
-- \`notifications\` / \`notifications-outline\`
-- \`eye\` / \`eye-off\`
+- \`Check\` / \`CheckCircle\`
+- \`AlertCircle\` / \`AlertTriangle\`
+- \`Info\`
+- \`Bell\` / \`BellOff\`
+- \`Eye\` / \`EyeOff\`
 
 **Misc:**
-- \`refresh\` / \`reload\`
-- \`location\` / \`location-outline\`
-- \`map\` / \`map-outline\`
-- \`time\` / \`time-outline\`
-- \`calendar\` / \`calendar-outline\`
-- \`cart\` / \`cart-outline\`
-- \`globe\` / \`globe-outline\`
-- \`filter\` / \`options\`
-- \`flash\` / \`flash-off\`
-- \`moon\` / \`sunny\`
-- \`log-out\` / \`log-in\`
-
-### Other Icon Families Available
-\`\`\`tsx
-import { MaterialIcons } from '@expo/vector-icons';
-import { FontAwesome } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-\`\`\``;
+- \`RefreshCw\`
+- \`MapPin\`
+- \`Map\`
+- \`Clock\`
+- \`Calendar\`
+- \`ShoppingCart\`
+- \`Globe\`
+- \`Filter\` / \`Sliders\`
+- \`Zap\` / \`ZapOff\`
+- \`Moon\` / \`Sun\`
+- \`LogOut\` / \`LogIn\`
+`;
 
 export const EXPO_IMAGE = `## Images (react-native Image)
 
@@ -125,6 +117,8 @@ import { Image } from 'react-native';
 
 ### Placeholder for missing images
 \`\`\`tsx
+import { User } from 'lucide-react-native';
+
 function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
   if (!uri) {
     return (
@@ -132,7 +126,7 @@ function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
         width: size, height: size, borderRadius: size / 2,
         backgroundColor: '#2c2c2e', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Ionicons name="person" size={size * 0.5} color="#8e8e93" />
+        <User size={size * 0.5} color="#8e8e93" />
       </View>
     );
   }
@@ -153,13 +147,15 @@ For apps that need media features, create placeholder UI that shows a mockup.
 
 ### Audio Player Placeholder
 \`\`\`tsx
+import { Play, Pause } from 'lucide-react-native';
+
 function AudioPlayer({ title }: { title: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
 
   return (
     <View style={styles.player}>
       <Pressable onPress={() => setIsPlaying(!isPlaying)}>
-        <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#fff" />
+        {isPlaying ? <Pause size={32} color="#fff" /> : <Play size={32} color="#fff" />}
       </Pressable>
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{title}</Text>
@@ -174,10 +170,12 @@ function AudioPlayer({ title }: { title: string }) {
 
 ### Image Placeholder (for camera/gallery features)
 \`\`\`tsx
+import { Camera } from 'lucide-react-native';
+
 function ImagePlaceholder({ onPress }: { onPress?: () => void }) {
   return (
     <Pressable onPress={onPress} style={styles.imagePlaceholder}>
-      <Ionicons name="camera" size={32} color="#8e8e93" />
+      <Camera size={32} color="#8e8e93" />
       <Text style={{ color: '#8e8e93', fontSize: 12, marginTop: 8 }}>Tap to add photo</Text>
     </Pressable>
   );
@@ -269,13 +267,13 @@ const [enabled, setEnabled] = useState(false);
 
 ### Settings Row Pattern
 \`\`\`tsx
-function SettingsRow({ icon, title, value, onToggle }: {
-  icon: string; title: string; value: boolean; onToggle: (v: boolean) => void;
+function SettingsRow({ icon: Icon, title, value, onToggle }: {
+  icon: any; title: string; value: boolean; onToggle: (v: boolean) => void;
 }) {
   return (
     <View style={styles.settingsRow}>
       <View style={styles.settingsRowLeft}>
-        <Ionicons name={icon as any} size={22} color="#8e8e93" />
+        <Icon size={22} color="#8e8e93" />
         <Text style={styles.settingsRowTitle}>{title}</Text>
       </View>
       <Switch

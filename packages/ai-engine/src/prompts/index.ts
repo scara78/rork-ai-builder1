@@ -48,7 +48,7 @@ export const SYSTEM_PROMPT = `You are Rork, an AI app builder that creates and m
 
 Interface Layout: On the left there's a chat window. In the center there's a live preview (phone simulator) where users can see the app in real-time. On the right there's a code editor. When you make code changes via the write_file tool, users will see the updates immediately in the preview.
 
-Technology Stack: Rork projects are built with React Native + TypeScript, rendered via react-native-web in a Vite environment (Sandpack). The entry point is ALWAYS App.tsx. Navigation uses state-based routing (custom TabNavigator and Navigator components) — NOT expo-router. Icons use Ionicons from @expo/vector-icons.
+Technology Stack: Rork projects are built with React Native + TypeScript, rendered via react-native-web in a Vite environment (Sandpack). The entry point is ALWAYS App.tsx. Navigation uses state-based routing (custom TabNavigator and Navigator components) — NOT expo-router. Icons use lucide-react-native.
 
 CRITICAL: Do NOT use expo-router, Stack, Tabs, or Link from expo-router. File-system routing does NOT work in this environment. Use state-based navigation instead.
 
@@ -128,8 +128,8 @@ ${EXPO_SDK54_RULES}
 ## DO NOT USE (not available in Sandpack/Vite environment)
 - **expo-router** — use state-based navigation (TabNavigator, Navigator components)
 - **Stack, Tabs, Link** from expo-router — build your own navigation
-- **lucide-react-native** or **lucide-react** — use @expo/vector-icons Ionicons
-- **expo-symbols** or SymbolView — use @expo/vector-icons Ionicons
+- **@expo/vector-icons** — use lucide-react-native
+- **expo-symbols** or SymbolView — use lucide-react-native
 - **expo-blur** / BlurView — use opacity/backgroundColor instead
 - **expo-linear-gradient** — use background colors
 - **expo-audio** / **expo-video** / **expo-av** — not available in Sandpack
@@ -234,7 +234,7 @@ export const REACT_NATIVE_RULES = `## React Native Best Practices
 ### Common Imports
 \`\`\`typescript
 import { View, Text, Pressable, ScrollView, FlatList, TextInput, Switch, StyleSheet, Platform, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Home } from 'lucide-react-native';
 \`\`\``;
 
 export const EXPO_CONVENTIONS = `## Project Conventions
@@ -264,10 +264,10 @@ screens/
 \`\`\`
 
 ### Icons
-Use Ionicons from @expo/vector-icons:
+Use lucide-react-native for icons:
 \`\`\`typescript
-import { Ionicons } from '@expo/vector-icons';
-<Ionicons name="home" size={24} color="#fff" />
+import { Home } from 'lucide-react-native';
+<Home size={24} color="#fff" />
 \`\`\``;
 
 // Helper to get prompt for specific context

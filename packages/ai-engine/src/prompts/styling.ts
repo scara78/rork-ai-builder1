@@ -132,12 +132,12 @@ const styles = StyleSheet.create({
 ### Row Pattern
 \`\`\`tsx
 <View style={styles.row}>
-  <Ionicons name="star" size={24} color="#FFD60A" />
+  <Star size={24} color="#FFD60A" fill="#FFD60A" />
   <View style={{ flex: 1 }}>
     <Text style={styles.rowTitle}>Title</Text>
     <Text style={styles.rowSubtitle}>Subtitle</Text>
   </View>
-  <Ionicons name="chevron-forward" size={20} color="#48484a" />
+  <ChevronRight size={20} color="#48484a" />
 </View>
 \`\`\``;
 

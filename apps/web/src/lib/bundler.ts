@@ -15,7 +15,6 @@ const IGNORED_PACKAGES = new Set([
   'react-native-screens', 'react-native-safe-area-context',
   'react-native-gesture-handler', 'react-native-reanimated',
   '@react-native-async-storage/async-storage',
-  'lucide-react-native', 'lucide-react',
   '@tamagui/core', 'tamagui', 'nativewind', 'tailwindcss',
   'expo-symbols', 'react-native-svg', 'react-native-maps',
   '@shopify/flash-list',
@@ -84,6 +83,19 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
     send('preview-error', (reason && reason.message) || String(reason) || 'Unhandled rejection', (reason && reason.stack) || '');
   });
 })();
+</script>`;
+
+    const importMapScript = `<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-native": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
+    "react-native-web": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
+    "lucide-react-native": "https://esm.sh/lucide-react-native@0.475.0?external=react,react-native"
+  }
+}
 </script>`;
 
     // Special web entry point for React Native Web
@@ -157,29 +169,14 @@ root.render(
           // External packages via esm.sh
           if (req.startsWith('http')) return { path: req, external: true };
 
-          // Map react-native to react-native-web
-          if (req === 'react-native') {
-            return { path: 'https://esm.sh/react-native-web@0.19.13?external=react,react-dom', external: true };
-          }
-          
-          if (req === 'react') {
-            return { path: 'https://esm.sh/react@18.3.1', external: true };
-          }
-          
-          if (req === 'react-dom/client') {
-            return { path: 'https://esm.sh/react-dom@18.3.1/client?external=react', external: true };
+          // Core packages that are in the import map -> keep them bare
+          if (['react', 'react-dom', 'react-dom/client', 'react-native', 'react-native-web', 'lucide-react-native'].includes(req)) {
+            return { path: req, external: true };
           }
 
           // Ignored packages -> return empty module
-          if (IGNORED_PACKAGES.has(req)) {
+          if (IGNORED_PACKAGES.has(req) || req.startsWith('@expo/vector-icons')) {
             return { path: req, namespace: 'empty-module' };
-          }
-
-          // Handle @expo/vector-icons
-          if (req.startsWith('@expo/vector-icons')) {
-            // Need to map to a browser-compatible icon package if possible,
-            // or just load from esm.sh
-              return { path: `https://esm.sh/${req}?external=react,react-native,react-native-web`, external: true };
           }
 
           // Resolve relative or aliased local paths
@@ -195,9 +192,9 @@ root.render(
             const projHit = tryResolveProjectPath(reqMapped);
             if (projHit) return { path: projHit, namespace: 'virtual-fs' };
             
-            // If it's a bare specifier not in our system, assume npm package
+            // If it's a bare specifier not in our system, assume npm package and rewrite to esm.sh
             if (!req.startsWith('/') && !req.startsWith('.')) {
-            return { path: `https://esm.sh/${req}?external=react,react-native,react-native-web`, external: true };
+              return { path: `https://esm.sh/${req}?external=react,react-native,react-native-web`, external: true };
             }
           }
           
@@ -259,6 +256,7 @@ root.render(
   <body>
     <div id="root"></div>
     ${errorReporterScript}
+    ${importMapScript}
     <script type="module">${jsCode}</script>
   </body>
 </html>`;

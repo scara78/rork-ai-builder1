@@ -13,13 +13,11 @@ state-based navigation instead of expo-router. Build a simple tab navigator from
 // components/TabNavigator.tsx
 import React, { useState } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 interface Tab {
   key: string;
   title: string;
-  icon: string;
-  iconOutline: string;
+  icon: any;
   component: React.ComponentType;
 }
 
@@ -41,14 +39,14 @@ export default function TabNavigator({ tabs, initialTab }: TabNavigatorProps) {
       <View style={styles.tabBar}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.key;
+          const Icon = tab.icon;
           return (
             <Pressable
               key={tab.key}
               style={styles.tabItem}
               onPress={() => setActiveTab(tab.key)}
             >
-              <Ionicons
-                name={(isActive ? tab.icon : tab.iconOutline) as any}
+              <Icon
                 size={24}
                 color={isActive ? '#007AFF' : '#8e8e93'}
               />
@@ -94,15 +92,16 @@ const styles = StyleSheet.create({
 \`\`\`tsx
 // App.tsx
 import React from 'react';
+import { Home, Compass, User } from 'lucide-react-native';
 import TabNavigator from './components/TabNavigator';
 import HomeScreen from './screens/HomeScreen';
 import ExploreScreen from './screens/ExploreScreen';
 import ProfileScreen from './screens/ProfileScreen';
 
 const tabs = [
-  { key: 'home', title: 'Home', icon: 'home', iconOutline: 'home-outline', component: HomeScreen },
-  { key: 'explore', title: 'Explore', icon: 'compass', iconOutline: 'compass-outline', component: ExploreScreen },
-  { key: 'profile', title: 'Profile', icon: 'person', iconOutline: 'person-outline', component: ProfileScreen },
+  { key: 'home', title: 'Home', icon: Home, component: HomeScreen },
+  { key: 'explore', title: 'Explore', icon: Compass, component: ExploreScreen },
+  { key: 'profile', title: 'Profile', icon: User, component: ProfileScreen },
 ];
 
 export default function App() {
@@ -110,13 +109,13 @@ export default function App() {
 }
 \`\`\`
 
-### Common Ionicons Names
-**Navigation:** home, home-outline, compass, compass-outline, search, search-outline
-**Social:** heart, heart-outline, person, person-outline, people, chatbubble
-**Media:** camera, image, play, musical-notes, mic
-**Actions:** add, add-circle, close, checkmark, trash, pencil, share
-**Status:** notifications, settings, star, bookmark, flag
-**Misc:** cart, calendar, map, location, time, globe`;
+### Common Lucide Icons
+**Navigation:** Home, Compass, Search
+**Social:** Heart, User, Users, MessageCircle
+**Media:** Camera, Image, Play, Music, Mic
+**Actions:** Plus, X, Check, Trash, Edit2, Share
+**Status:** Bell, Settings, Star, Bookmark, Flag
+**Misc:** ShoppingCart, Calendar, MapPin, Clock, Globe`;
 
 export const LINK_PATTERNS = `## Screen Navigation (State-Based)
 
@@ -222,7 +221,7 @@ function DetailsScreen() {
     <View>
       {canGoBack && (
         <Pressable onPress={goBack}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <ArrowLeft size={24} color="#fff" />
         </Pressable>
       )}
       <Text>Detail ID: {params.id}</Text>
@@ -238,7 +237,7 @@ export const STACK_NAVIGATION = `## Stack-Style Navigation Headers
 // components/ScreenHeader.tsx
 import React, { ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ChevronLeft } from 'lucide-react-native';
 
 interface ScreenHeaderProps {
   title: string;
@@ -253,7 +252,7 @@ export default function ScreenHeader({ title, onBack, showBack, rightAction }: S
       <View style={styles.headerLeft}>
         {showBack && onBack && (
           <Pressable onPress={onBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color="#007AFF" />
+            <ChevronLeft size={24} color="#007AFF" />
           </Pressable>
         )}
       </View>
@@ -293,6 +292,7 @@ const styles = StyleSheet.create({
 \`\`\`tsx
 import ScreenHeader from '../components/ScreenHeader';
 import { useNavigator } from '../components/Navigator';
+import { Edit2 } from 'lucide-react-native';
 
 export default function DetailsScreen() {
   const { goBack, canGoBack, params } = useNavigator();
@@ -305,7 +305,7 @@ export default function DetailsScreen() {
         onBack={goBack}
         rightAction={
           <Pressable onPress={handleEdit}>
-            <Ionicons name="pencil" size={22} color="#007AFF" />
+            <Edit2 size={22} color="#007AFF" />
           </Pressable>
         }
       />
@@ -436,6 +436,7 @@ import DetailsScreen from './screens/DetailsScreen';
 import HomeScreen from './screens/HomeScreen';
 import ExploreScreen from './screens/ExploreScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import { Home, Compass, User } from 'lucide-react-native';
 
 function MainApp() {
   const { currentScreen } = useNavigator();
@@ -447,9 +448,9 @@ function MainApp() {
 
   // Otherwise show tabs
   const tabs = [
-    { key: 'home', title: 'Home', icon: 'home', iconOutline: 'home-outline', component: HomeScreen },
-    { key: 'explore', title: 'Explore', icon: 'compass', iconOutline: 'compass-outline', component: ExploreScreen },
-    { key: 'profile', title: 'Profile', icon: 'person', iconOutline: 'person-outline', component: ProfileScreen },
+    { key: 'home', title: 'Home', icon: Home, component: HomeScreen },
+    { key: 'explore', title: 'Explore', icon: Compass, component: ExploreScreen },
+    { key: 'profile', title: 'Profile', icon: User, component: ProfileScreen },
   ];
 
   return <TabNavigator tabs={tabs} />;

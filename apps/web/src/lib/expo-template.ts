@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
         'react-dom': '18.3.1',
         'react-native': '0.78.0',
         'react-native-web': '~0.19.13',
-        '@expo/vector-icons': '^14.0.2',
+        'lucide-react-native': '^0.475.0',
       },
     }, null, 2),
     'tsconfig.json': JSON.stringify({

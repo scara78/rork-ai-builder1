@@ -303,7 +303,7 @@ export const EXPO_CONTROLS = `## Package Rules (Sandpack + Vite + React Native W
 | Package | Notes |
 |---------|-------|
 | react, react-native | Core — react-native is aliased to react-native-web |
-| @expo/vector-icons | Ionicons, MaterialIcons, FontAwesome, Feather |
+| lucide-react-native | Icons for the project |
 | react-native-web | Automatically aliased from react-native |
 
 ### BANNED packages — DO NOT USE
@@ -321,17 +321,17 @@ export const EXPO_CONTROLS = `## Package Rules (Sandpack + Vite + React Native W
 - **react-native-gesture-handler** — use Pressable from react-native
 - **react-native-reanimated** — use Animated from react-native
 - **@react-native-async-storage/async-storage** — use localStorage wrapper (see storage patterns)
-- **lucide-react-native** — use @expo/vector-icons Ionicons
+- **@expo/vector-icons** — use lucide-react-native
 - **@tamagui/core** or any tamagui package
 - **nativewind** or **tailwind** — use StyleSheet.create
 - **react-native-svg** — not available
 - **react-native-maps** — not available
 - **@shopify/flash-list** — use FlatList from react-native
 
-### Icons: ALWAYS use Ionicons from @expo/vector-icons
+### Icons: ALWAYS use lucide-react-native
 \`\`\`typescript
-import { Ionicons } from '@expo/vector-icons';
-<Ionicons name="heart" size={24} color="#FF6B6B" />
+import { Heart } from 'lucide-react-native';
+<Heart size={24} color="#FF6B6B" />
 \`\`\`
 
 Do NOT import packages outside the allowed list above. Keep dependencies minimal.`;

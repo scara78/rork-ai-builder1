@@ -15,7 +15,7 @@ This app runs in a **Vite + React Native Web** environment inside the browser (v
 ### Library Preferences
 | Use This | NOT This |
 |----------|----------|
-| \`@expo/vector-icons\` (Ionicons) | expo-symbols / SymbolView |
+| \`lucide-react-native\` | @expo/vector-icons / expo-symbols / SymbolView |
 | State-based navigation (custom TabNavigator/Navigator) | expo-router (NOT available) |
 | Custom ScreenHeader component | Stack.Screen options |
 | \`react-native\` components via react-native-web | Web HTML elements (<div>, <span>) |
@@ -25,7 +25,7 @@ This app runs in a **Vite + React Native Web** environment inside the browser (v
 
 ### Available Packages (work in Vite + react-native-web)
 - react, react-native (aliased to react-native-web)
-- @expo/vector-icons (Ionicons, MaterialIcons, FontAwesome, Feather)
+- lucide-react-native
 - react-native-reanimated (basic animations work on web)
 - AsyncStorage-like patterns using localStorage
 
@@ -75,10 +75,7 @@ import { useWindowDimensions } from 'react-native';
 
 ### Icons
 \`\`\`typescript
-import { Ionicons } from '@expo/vector-icons';
-import { MaterialIcons } from '@expo/vector-icons';
-import { FontAwesome } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import { Home, Settings, User } from 'lucide-react-native';
 \`\`\`
 
 ### Storage (localStorage wrapper for web)
