@@ -39,10 +39,7 @@ function transformFilesToSnack(files: Record<string, { path: string; content: st
     // EXTREMELY IMPORTANT: Never send configuration files to Snack Web Player.
     // Snack already provides its own babel, typescript, and metro configurations.
     // If we send custom ones, it breaks the entire Preview with Babel/Flow errors.
-    // ONLY block babel and metro configs. Snack NEEDS package.json and app.json to boot Expo Router.
-    if (['babel.config.js', 'metro.config.js', 'tsconfig.json'].includes(path)) {
-      return;
-    }
+
     
     snackFiles[path] = { type: 'CODE', contents: file.content };
   });
