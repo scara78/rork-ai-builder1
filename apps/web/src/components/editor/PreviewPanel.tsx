@@ -204,6 +204,7 @@ function extractSandpackDeps(
   const deps: Record<string, string> = {
     // Core RN Web deps — always needed
     'react-native-web': 'latest',
+    '@expo/vector-icons': '^14.0.2',
   };
 
   const packageFile = Object.values(files).find(
