@@ -401,19 +401,8 @@ import 'expo-router/entry';
       } catch { /* ignore */ }
     }, 500);
 
-    // Grace period: if no connected clients after 2.5s, the web player may
-    // have failed to connect properly. In that case, reload the iframe.
-    setTimeout(() => {
-      if (!snackRef.current) return;
-      const state = snackRef.current.getState();
-      const hasClients = Object.keys(state.connectedClients || {}).length > 0;
-      console.log('[Snack] Grace check: hasClients =', hasClients);
-
-      if (!hasClients && iframeElRef.current?.contentWindow) {
-        console.log('[Snack] No clients after grace period, reloading iframe');
-        try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin, ignore */ }
-      }
-    }, 2500);
+    // Removed grace period reload. It was causing an infinite reload loop 
+    // because downloading the Snack web player assets takes longer than 2.5s on first load.
 
     setIsLoading(false);
   }, []);
