@@ -272,7 +272,7 @@ import 'expo-router/entry';
         onExpoURLChange?.(initialState.url);
       }
 
-      const unsubscribe = snack.addStateListener((state, prevState) => {
+      const unsubscribeState = snack.addStateListener((state, prevState) => {
         if (state.webPreviewURL !== prevState.webPreviewURL) {
           setWebPreviewURL(state.webPreviewURL);
         }
@@ -283,7 +283,20 @@ import 'expo-router/entry';
         onDevicesChange?.(clientCount);
       });
 
-      return unsubscribe;
+      // Catch runtime errors from Snack and forward them to the UI
+      const unsubscribeLog = snack.addLogListener((log) => {
+        if (log.type === 'error' && log.message) {
+          useProjectStore.getState().addRuntimeError(
+            log.message, 
+            log.error ? JSON.stringify(log.error, null, 2) : undefined
+          );
+        }
+      });
+
+      return () => {
+        unsubscribeState();
+        unsubscribeLog();
+      };
     }
 
     let unsubscribe: (() => void) | undefined;
