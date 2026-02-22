@@ -215,7 +215,20 @@ root.render(
 
         // Load empty modules for ignored packages
         build.onLoad({ filter: /.*/, namespace: 'empty-module' }, () => {
-          return { contents: 'export default {};', loader: 'js' };
+          return { 
+            contents: `
+              export default new Proxy({}, {
+                get: function(target, prop) {
+                  return function() { return null; };
+                }
+              });
+              export const Ionicons = () => null;
+              export const MaterialIcons = () => null;
+              export const FontAwesome = () => null;
+              export const Feather = () => null;
+            `, 
+            loader: 'js' 
+          };
         });
       },
     };
