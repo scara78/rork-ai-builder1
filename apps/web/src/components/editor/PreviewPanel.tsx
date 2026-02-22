@@ -1,12 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Sparkles } from 'lucide-react';
-import {
-  SandpackProvider,
-  SandpackPreview,
-  useSandpack,
-} from '@codesandbox/sandpack-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
 
@@ -16,253 +11,6 @@ interface PreviewPanelProps {
   onDevicesChange?: (count: number) => void;
 }
 
-// ─── Sandpack Template ───────────────────────────────────────────────────────
-// We embed a Vite + React Native Web template directly. Sandpack bundles
-// everything in-browser (no server required, $0 cost).
-
-const VITE_CONFIG = `import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      'react-native': 'react-native-web',
-    },
-    extensions: ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.js'],
-  },
-  define: {
-    __DEV__: JSON.stringify(true),
-    'process.env': JSON.stringify({}),
-  },
-});
-`;
-
-const INDEX_HTML = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Rork Preview</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body, #root {
-        width: 100%; height: 100%;
-        overflow: hidden;
-        background-color: #0a0a0a;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        -webkit-font-smoothing: antialiased;
-      }
-      /* Hide scrollbars for mobile-like feel */
-      ::-webkit-scrollbar { display: none; }
-      body { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/main.tsx"></script>
-  </body>
-</html>
-`;
-
-const MAIN_TSX = `import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { AppRegistry } from 'react-native-web';
-import App from './App';
-
-// Register with RN web's AppRegistry for proper initialization
-AppRegistry.registerComponent('RorkApp', () => App);
-const { element, getStyleElement } = AppRegistry.getApplication('RorkApp');
-
-const root = createRoot(document.getElementById('root')!);
-root.render(
-  <React.StrictMode>
-    {element}
-  </React.StrictMode>
-);
-`;
-
-const DEFAULT_APP = `import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Rork</Text>
-      <Text style={styles.subtitle}>Your app will appear here</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#888',
-    textAlign: 'center',
-  },
-});
-`;
-
-// Packages that Sandpack should not try to resolve (they cause errors in the
-// browser environment or have no web equivalent)
-const IGNORED_PACKAGES = new Set([
-  'expo', 'expo-router', 'expo-status-bar', 'expo-constants',
-  'expo-font', 'expo-asset', 'expo-file-system', 'expo-updates',
-  'expo-splash-screen', 'expo-camera', 'expo-haptics',
-  'expo-image-picker', 'expo-linking',
-  'react-native-screens', 'react-native-safe-area-context',
-  'react-native-gesture-handler', 'react-native-reanimated',
-  '@react-native-async-storage/async-storage',
-  'lucide-react-native', 'lucide-react',
-  '@tamagui/core', 'tamagui', 'nativewind', 'tailwindcss',
-  'expo-symbols', 'react-native-svg', 'react-native-maps',
-  '@shopify/flash-list',
-]);
-
-// ─── File Transformation ─────────────────────────────────────────────────────
-
-/**
- * Convert project files from the store into Sandpack's file format.
- *
- * Key decisions:
- * - Skip binary assets and config files that Vite doesn't need
- * - Detect expo-router style projects (app/ directory) and generate a
- *   simple state-based router wrapper since Vite can't do file-system routing
- * - Always ensure an App.tsx exists as the entry point
- */
-function transformFilesForSandpack(
-  files: Record<string, { path: string; content: string }>
-): Record<string, string> {
-  const result: Record<string, string> = {};
-
-  Object.values(files).forEach((file) => {
-    let path = file.path.startsWith('/') ? file.path : `/${file.path}`;
-
-    // Skip binary assets and build configs
-    if (path.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/i)) return;
-    if (['/babel.config.js', '/metro.config.js', '/tsconfig.json', '/app.json'].includes(path)) return;
-
-    // Skip package.json — we handle dependencies separately
-    if (path === '/package.json') return;
-
-    result[path] = file.content;
-  });
-
-  // Detect expo-router style project (has files in /app/ directory)
-  const appDirFiles = Object.keys(result).filter(
-    (p) => p.startsWith('/app/') && (p.endsWith('.tsx') || p.endsWith('.ts') || p.endsWith('.js'))
-  );
-
-  const hasAppEntry = result['/App.tsx'] || result['/App.js'];
-
-  if (appDirFiles.length > 0 && !hasAppEntry) {
-    // Generate a simple wrapper that imports the main tab index screen
-    // This bridges expo-router's file-based routing into a single-entry Vite app
-    const indexScreen = appDirFiles.find(
-      (p) => p.includes('(tabs)/index') || p === '/app/index.tsx' || p === '/app/index.js'
-    );
-
-    if (indexScreen) {
-      const importPath = indexScreen.replace(/\.(tsx|ts|js)$/, '');
-      result['/App.tsx'] = `import React from 'react';
-import Screen from '${importPath}';
-
-export default function App() {
-  return <Screen />;
-}
-`;
-    } else {
-      result['/App.tsx'] = DEFAULT_APP;
-    }
-  } else if (!hasAppEntry) {
-    result['/App.tsx'] = DEFAULT_APP;
-  }
-
-  return result;
-}
-
-/**
- * Extract npm dependencies from the project's package.json.
- * Only include packages that work in a browser/Vite environment.
- */
-function extractSandpackDeps(
-  files: Record<string, { path: string; content: string }>
-): Record<string, string> {
-  const deps: Record<string, string> = {
-    // Core RN Web deps — always needed
-    'react-native-web': 'latest',
-    '@expo/vector-icons': '^14.0.2',
-  };
-
-  const packageFile = Object.values(files).find(
-    (f) => f.path === 'package.json' || f.path === '/package.json'
-  );
-
-  if (packageFile) {
-    try {
-      const pkg = JSON.parse(packageFile.content);
-      if (pkg.dependencies) {
-        Object.entries(pkg.dependencies).forEach(([name, version]) => {
-          // Skip core packages (provided by Sandpack), ignored packages,
-          // and react-native itself (we alias it to react-native-web)
-          if (
-            ['react', 'react-dom', 'react-native'].includes(name) ||
-            IGNORED_PACKAGES.has(name)
-          ) {
-            return;
-          }
-          deps[name] = String(version).replace(/[\^~]/, '') || 'latest';
-        });
-      }
-    } catch {
-      /* ignore parse errors */
-    }
-  }
-
-  // Common RN ecosystem packages that have web equivalents
-  // expo-linear-gradient → react-native-web-linear-gradient (or just skip)
-  // expo-blur → skip (BlurView renders as transparent <View> on web anyway)
-  // expo-image → use regular img on web
-  // expo-av → skip
-
-  return deps;
-}
-
-// ─── Inner Component (needs useSandpack hook inside SandpackProvider) ────────
-
-function SandpackStatusBridge({
-  onStatusChange,
-}: {
-  onStatusChange: (status: 'idle' | 'running' | 'error') => void;
-}) {
-  const { sandpack } = useSandpack();
-
-  useEffect(() => {
-    if (sandpack.status === 'running') {
-      onStatusChange('running');
-    } else if (sandpack.status === 'idle') {
-      onStatusChange('idle');
-    }
-  }, [sandpack.status, onStatusChange]);
-
-  return null;
-}
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
   const { files, generatingFiles } = useProjectStore();
   const { isRunning: isAgentRunning } = useAgentStore();
@@ -270,36 +18,52 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const isGenerating = isAgentRunning;
   const hasRealFiles = Object.keys(files).length > 0;
 
-  const [sandpackStatus, setSandpackStatus] = useState<'idle' | 'running' | 'error'>('idle');
   const [deviceSize, setDeviceSize] = useState<'phone' | 'tablet'>('phone');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
-  // Whether the Sandpack preview has loaded at least once
-  const hasLoaded = sandpackStatus === 'running';
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const handleStatusChange = useCallback((status: 'idle' | 'running' | 'error') => {
-    setSandpackStatus(status);
-  }, []);
-
-  // Transform project files into Sandpack format
-  const sandpackFiles = useMemo(() => {
-    const userFiles = transformFilesForSandpack(files);
-    return {
-      // Vite infrastructure files
-      '/vite.config.ts': VITE_CONFIG,
-      '/index.html': INDEX_HTML,
-      '/main.tsx': MAIN_TSX,
-      // User's project files (may override App.tsx)
-      ...userFiles,
-    };
-  }, [files]);
-
-  const sandpackDeps = useMemo(() => extractSandpackDeps(files), [files]);
+  // Bundle URL using the Next.js API route that runs esbuild
+  const bundleUrl = `/api/projects/${projectId}/bundle?t=${refreshKey}`;
 
   const handleRefresh = useCallback(() => {
-    setSandpackStatus('idle');
+    setIframeLoaded(false);
+    setRuntimeError(null);
     setRefreshKey((k) => k + 1);
   }, []);
+
+  // Receive runtime errors from iframe (injected by our bundler)
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.source === 'rork-preview' && data.type === 'preview-error') {
+        const msg = [data.message, data.stack].filter(Boolean).join('\\n');
+        setRuntimeError(msg || 'Runtime error');
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // When AI stops generating, automatically refresh the preview to load latest files
+  const previousGeneratingRef = useRef(isGenerating);
+  useEffect(() => {
+    if (previousGeneratingRef.current === true && isGenerating === false && hasRealFiles) {
+      // Small delay to ensure all DB writes are finished
+      const timer = setTimeout(() => {
+        handleRefresh();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    previousGeneratingRef.current = isGenerating;
+  }, [isGenerating, hasRealFiles, handleRefresh]);
+
+  // When a specific file (not during full generation loop) changes, we can reload
+  // However, relying on the 'isGenerating' transition is safer for bulk updates.
+  // We'll trust the user to press Refresh or the auto-refresh above.
 
   return (
     <div className="h-full w-full flex flex-col bg-[#1a1a1d]">
@@ -317,10 +81,15 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
               <span className="text-gray-500 font-medium text-xs">Waiting</span>
             </div>
-          ) : !hasLoaded ? (
+          ) : !iframeLoaded ? (
             <div className="flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin text-yellow-400" />
-              <span className="text-yellow-400 font-medium text-xs">Loading</span>
+              <span className="text-yellow-400 font-medium text-xs">Loading preview</span>
+            </div>
+          ) : runtimeError ? (
+            <div className="flex items-center gap-1.5">
+              <AlertCircle size={12} className="text-red-400" />
+              <span className="text-red-400 font-medium text-xs">Error</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -345,14 +114,14 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
           {/* Device type icons */}
           <button
             onClick={() => setDeviceSize('phone')}
-            className={`p-1.5 rounded-md transition-colors ${deviceSize === 'phone' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+        className={`p-1.5 rounded-md transition-colors ${deviceSize === 'phone' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
             title="Phone"
           >
             <Smartphone size={13} />
           </button>
           <button
             onClick={() => setDeviceSize('tablet')}
-            className={`p-1.5 rounded-md transition-colors ${deviceSize === 'tablet' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+        className={`p-1.5 rounded-md transition-colors ${deviceSize === 'tablet' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
             title="Tablet"
           >
             <Tablet size={13} />
@@ -375,50 +144,42 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               deviceSize === 'tablet' ? 'rounded-[21px]' : 'rounded-[37px]'
             }`}
           >
-            {/* Sandpack Preview — always rendered but hidden by overlays until ready */}
+            {/* The actual preview iframe powered by esbuild */}
             {hasRealFiles && (
-              <SandpackProvider
-                key={refreshKey}
-                template="vite-react-ts"
-                files={sandpackFiles}
-                customSetup={{
-                  dependencies: {
-                    'react': 'latest',
-                    'react-dom': 'latest',
-                    ...sandpackDeps,
-                  },
-                  devDependencies: {
-                    '@vitejs/plugin-react': 'latest',
-                  },
-                }}
-                options={{
-                  externalResources: [],
-                  recompileMode: 'delayed',
-                  recompileDelay: 500,
-                }}
-                theme="dark"
-              >
-                <SandpackStatusBridge onStatusChange={handleStatusChange} />
-                <div className="w-full h-full [&_.sp-preview-container]:!h-full [&_.sp-preview-iframe]:!h-full [&_.sp-stack]:!h-full [&>div]:!h-full">
-                  <SandpackPreview
-                    showNavigator={false}
-                    showRefreshButton={false}
-                    showOpenInCodeSandbox={false}
-                    style={{ height: '100%', width: '100%' }}
-                  />
-                </div>
-              </SandpackProvider>
+              <iframe
+                ref={iframeRef}
+                key={bundleUrl}
+                src={bundleUrl}
+                onLoad={() => setIframeLoaded(true)}
+                className="w-full h-full border-0 bg-[#0a0a0a]"
+                title="Rork Preview"
+                allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; payment; usb; xr-spatial-tracking; screen-wake-lock"
+                sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
+              />
             )}
 
-            {/*
-              OVERLAY LOGIC — Priority order:
-              1. Building: agent is running → "Building your app..." with file list
-              2. No files: nothing generated yet → "No app yet" empty state
-              3. Loading: has files but Sandpack not running yet → "Loading preview..."
-              4. Connected: Sandpack running → show preview (no overlay)
-            */}
+            {/* Overlays */}
+            
+            {/* Runtime Error Overlay */}
+            {runtimeError && iframeLoaded && !isGenerating && (
+              <div className="absolute inset-0 z-40 bg-red-950/90 flex flex-col p-6 overflow-auto">
+                <div className="flex items-center gap-2 mb-4 text-red-400">
+                  <AlertCircle className="w-5 h-5" />
+                  <h3 className="font-semibold text-sm">Runtime Error</h3>
+                </div>
+                <pre className="text-red-300 text-[11px] whitespace-pre-wrap font-mono bg-black/40 p-4 rounded-lg flex-1 overflow-auto">
+                  {runtimeError}
+                </pre>
+                <button
+                  onClick={handleRefresh}
+                  className="mt-4 py-2 bg-red-500/20 text-red-200 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors"
+                >
+                  Dismiss & Reload
+                </button>
+              </div>
+            )}
 
-            {/* Building overlay — agent is actively generating */}
+            {/* Building overlay */}
             {isGenerating && (
               <div className="absolute inset-0 z-30 flex flex-col bg-[#0a0a0a]">
                 <div className="flex-1 flex flex-col items-center justify-center px-6">
@@ -457,7 +218,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               </div>
             )}
 
-            {/* Empty state — no files generated yet, agent not running */}
+            {/* Empty state */}
             {!isGenerating && !hasRealFiles && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0a0a0a]">
                 <div className="text-center text-gray-500 px-6">
@@ -472,13 +233,13 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               </div>
             )}
 
-            {/* Loading overlay — has files, but Sandpack not yet running */}
-            {!isGenerating && hasRealFiles && !hasLoaded && (
+            {/* Loading overlay */}
+            {!isGenerating && hasRealFiles && !iframeLoaded && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0a0a0a]">
                 <div className="text-center text-gray-500 px-6">
                   <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-gray-400" />
                   <p className="text-sm font-medium text-gray-300">Loading preview...</p>
-                  <p className="text-xs mt-1 text-gray-500">Bundling with Vite</p>
+                  <p className="text-xs mt-1 text-gray-500">Bundling files</p>
                 </div>
               </div>
             )}

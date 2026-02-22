@@ -17,7 +17,7 @@ const nextConfig = {
       },
     ],
   },
-  serverExternalPackages: ['formidable', 'pubnub', 'superagent'],
+  serverExternalPackages: ['formidable', 'pubnub', 'superagent', 'esbuild'],
 };
 
 module.exports = nextConfig;
