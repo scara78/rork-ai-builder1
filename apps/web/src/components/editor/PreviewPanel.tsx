@@ -202,6 +202,7 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const hasConnectedRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [hasClientConnected, setHasClientConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [webPreviewURL, setWebPreviewURL] = useState<string | undefined>(undefined);
   const [deviceSize, setDeviceSize] = useState<'phone' | 'tablet'>('phone');
@@ -298,6 +299,7 @@ import 'expo-router/entry';
     hadRealFilesRef.current = false;
     hasAddedExtraDepsRef.current = false;
     hasConnectedRef.current = false;
+    setHasClientConnected(false);
     earlyMessagesRef.current = [];
 
     // Install early listener BEFORE async initSnack — captures CONNECT from iframe
@@ -381,6 +383,7 @@ import 'expo-router/entry';
         if (clientCount > 0 && prevClientCount === 0) {
           hasConnectedRef.current = true;
           setIsLoading(false);
+          setHasClientConnected(true);
           console.log('[Snack] Client connected. Adding non-preloaded deps...');
           // Defer adding extra deps slightly to let the initial code render first
           setTimeout(() => {
@@ -521,6 +524,7 @@ import 'expo-router/entry';
   const handleRefresh = useCallback(() => {
     if (snackRef.current) {
       setIsLoading(true);
+      setHasClientConnected(false);
       hasConnectedRef.current = false;
       earlyMessagesRef.current = [];
       // Reload iframe to get a fresh CONNECT + code push cycle
@@ -565,7 +569,7 @@ import 'expo-router/entry';
               <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
               <span className="text-gray-500 font-medium text-xs">Waiting</span>
             </div>
-          ) : isLoading ? (
+          ) : !hasClientConnected ? (
             <div className="flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin text-yellow-400" />
               <span className="text-yellow-400 font-medium text-xs">Loading</span>
@@ -629,9 +633,21 @@ import 'expo-router/entry';
               />
             ) : null}
 
-            {/* Building overlay */}
+            {/* 
+              OVERLAY LOGIC — Priority order:
+              1. Building: agent is running → "Building your app..." with file list
+              2. No files: nothing generated yet → "No app yet" empty state
+              3. Loading: has files but Snack client not connected → "Loading preview..." 
+              4. Connected: client connected → show iframe (no overlay)
+              
+              The iframe always renders underneath but is HIDDEN by overlays
+              until a Snack client actually connects. This prevents users from
+              ever seeing the web player's "Connecting..." message.
+            */}
+
+            {/* Building overlay — agent is actively generating */}
             {isGenerating && (
-              <div className="absolute inset-0 z-30 flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm">
+              <div className="absolute inset-0 z-30 flex flex-col bg-[#0a0a0a]">
                 <div className="flex-1 flex flex-col items-center justify-center px-6">
                   <div className="relative mb-5">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
@@ -640,7 +656,7 @@ import 'expo-router/entry';
                     <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 opacity-30 animate-ping" />
                   </div>
                   
-                  <p className="text-white font-semibold text-sm mb-1">Building your app</p>
+                  <p className="text-white font-semibold text-sm mb-1">Building your app...</p>
                   <p className="text-gray-500 text-xs mb-5">Rork is writing code...</p>
                   
                   {generatingFiles.length > 0 && (
@@ -671,30 +687,29 @@ import 'expo-router/entry';
               </div>
             )}
 
-            {(!webPreviewURL || isLoading) && !isGenerating && (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]">
+            {/* Empty state — no files generated yet, agent not running */}
+            {!isGenerating && !hasRealFiles && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0a0a0a]">
                 <div className="text-center text-gray-500 px-6">
-                  {!hasRealFiles ? (
-                    // No files yet — show "waiting for AI" state
-                    <>
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-600/20 flex items-center justify-center mx-auto mb-4 border border-white/5">
-                        <Sparkles className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-300">No app yet</p>
-                      <p className="text-xs mt-2 text-gray-500 leading-relaxed max-w-[200px] mx-auto">
-                        Describe what you want to build in the chat and Rork will generate it here.
-                      </p>
-                    </>
-                  ) : (
-                    // Has files but Snack SDK still loading
-                    <>
-                      <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" />
-                      <p className="text-sm font-medium">
-                        {webPreviewURL ? 'Loading preview...' : 'Connecting to Expo...'}
-                      </p>
-                      <p className="text-xs mt-1">This may take a moment</p>
-                    </>
-                  )}
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-600/20 flex items-center justify-center mx-auto mb-4 border border-white/5">
+                    <Sparkles className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-300">No app yet</p>
+                  <p className="text-xs mt-2 text-gray-500 leading-relaxed max-w-[200px] mx-auto">
+                    Describe what you want to build in the chat and Rork will generate it here.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Loading overlay — has files, build done, but Snack client not yet connected */}
+            {/* This prevents the user from seeing the iframe's "Connecting..." message */}
+            {!isGenerating && hasRealFiles && !hasClientConnected && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0a0a0a]">
+                <div className="text-center text-gray-500 px-6">
+                  <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-gray-400" />
+                  <p className="text-sm font-medium text-gray-300">Loading preview...</p>
+                  <p className="text-xs mt-1 text-gray-500">Starting Expo runtime</p>
                 </div>
               </div>
             )}
