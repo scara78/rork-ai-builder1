@@ -116,19 +116,17 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
     const virtualEntryContent = `
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppRegistry } from 'react-native-web';
 import App from '.${appImportPath}';
 
-// Register with RN web's AppRegistry
-AppRegistry.registerComponent('RorkApp', () => App);
-const { element } = AppRegistry.getApplication('RorkApp');
-
-const root = createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    {element}
-  </React.StrictMode>
-);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
 `;
 
     files[VIRTUAL_ENTRY_ID] = virtualEntryContent;
