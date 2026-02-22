@@ -274,8 +274,19 @@ import 'expo-router/entry';
   //   Phase 1: Start Snack with ONLY preloaded deps → isBusy()=false → code pushes work immediately
   //   Phase 2: After first client connects, add non-preloaded deps from package.json
   //
-  // We initialize Snack with disabled: false so it starts listening to window messages IMMEDIATELY.
-  // This eliminates the race condition where the iframe sends CONNECT before the transport is ready.
+  // Race-condition fix:
+  //   The web player iframe sends a CONNECT postMessage as soon as it boots. The Snack SDK's
+  //   webplayer transport only receives messages AFTER transport.start() runs (via addEventListener).
+  //   Even with disabled:false, the transport start happens synchronously in the constructor — but
+  //   initSnack() is async (awaits resolveSDKVersion), so the iframe may load and send CONNECT
+  //   before initSnack finishes. We install a SEPARATE window listener to buffer these early
+  //   CONNECT messages from the S3 origin. After Snack initializes, we replay them via the
+  //   transport's synthetic_event mechanism.
+
+  // Ref to hold S3 web player origin for filtering early messages
+  const webPlayerOriginRef = useRef<string>('https://snack-web-player.s3.us-west-1.amazonaws.com');
+  // Buffer for CONNECT/MESSAGE events that arrive before Snack transport is ready
+  const earlyMessagesRef = useRef<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,13 +298,48 @@ import 'expo-router/entry';
     hadRealFilesRef.current = false;
     hasAddedExtraDepsRef.current = false;
     hasConnectedRef.current = false;
+    earlyMessagesRef.current = [];
+
+    // Install early listener BEFORE async initSnack — captures CONNECT from iframe
+    const earlyListener = (event: MessageEvent) => {
+      if (hasConnectedRef.current) return; // Already connected, no need to buffer
+      const origin = event.origin || '';
+      if (!origin.includes('snack-web-player')) return;
+      try {
+        const data = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+        const parsed = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (parsed.type === 'CONNECT' || parsed.type === 'MESSAGE') {
+          console.log('[Snack] Early capture:', parsed.type);
+          earlyMessagesRef.current.push(data);
+          // If Snack is already initialized, replay immediately
+          if (snackRef.current) {
+            replayEarlyMessages();
+          }
+        }
+      } catch { /* not JSON, ignore */ }
+    };
+    window.addEventListener('message', earlyListener, false);
+
+    function replayEarlyMessages() {
+      if (earlyMessagesRef.current.length === 0 || !snackRef.current) return;
+      const state = snackRef.current.getState();
+      const webplayerTransport = state.transports?.['webplayer'];
+      if (!webplayerTransport) return;
+
+      console.log('[Snack] Replaying', earlyMessagesRef.current.length, 'early messages via synthetic_event');
+      for (const msgData of earlyMessagesRef.current) {
+        // Use the transport's synthetic_event mechanism to inject the message
+        webplayerTransport.postMessage({ type: 'synthetic_event', data: msgData });
+      }
+      earlyMessagesRef.current = [];
+    }
 
     async function initSnack() {
       const sdkVersion = await resolveSDKVersion();
       if (cancelled) return;
 
       const snack = new Snack({
-        disabled: false, // Start immediately — catches CONNECT from iframe without race
+        disabled: false,
         files: snackFiles,
         dependencies: initialDependencies, // Phase 1: only preloaded deps
         sdkVersion,
@@ -308,10 +354,16 @@ import 'expo-router/entry';
       if (initialState.webPreviewURL) {
         setWebPreviewURL(initialState.webPreviewURL);
         console.log('[Snack] Web preview URL:', initialState.webPreviewURL);
+        try {
+          webPlayerOriginRef.current = new URL(initialState.webPreviewURL).origin;
+        } catch { /* keep default */ }
       }
       if (initialState.url) {
         onExpoURLChange?.(initialState.url);
       }
+
+      // Replay any CONNECT messages that arrived during resolveSDKVersion()
+      replayEarlyMessages();
 
       const unsubscribeState = snack.addStateListener((state, prevState) => {
         if (state.webPreviewURL !== prevState.webPreviewURL) {
@@ -334,8 +386,6 @@ import 'expo-router/entry';
           setTimeout(() => {
             if (!snackRef.current || hasAddedExtraDepsRef.current) return;
             hasAddedExtraDepsRef.current = true;
-            // Add the full set of deps including those from package.json
-            // This may cause isBusy() temporarily, but the initial render is already done
             snackRef.current.updateDependencies(fullDependencies);
           }, 1000);
         }
@@ -366,6 +416,7 @@ import 'expo-router/entry';
     return () => {
       cancelled = true;
       clearTimeout(timeout);
+      window.removeEventListener('message', earlyListener, false);
       unsubscribe?.();
       if (snackRef.current) {
         snackRef.current.setOnline(false);
@@ -448,21 +499,21 @@ import 'expo-router/entry';
         snackRef.current.sendCodeChanges?.();
         console.log('[Snack] Post-load code push triggered');
       } catch { /* ignore */ }
-    }, 500);
 
-    // Grace period: if no connected clients after 5s, reload iframe ONCE.
-    // This handles the case where CONNECT was lost in transit.
-    // 5s is long enough for the web player to boot even on slow connections.
-    setTimeout(() => {
-      if (!snackRef.current || hasConnectedRef.current) return;
-      const state = snackRef.current.getState();
-      const hasClients = Object.keys(state.connectedClients || {}).length > 0;
-      if (!hasClients && iframeElRef.current?.contentWindow) {
-        console.log('[Snack] No clients after 5s, reloading iframe once');
-        hasConnectedRef.current = false; // Reset so we can detect the next connect
-        try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
+      // Also replay any buffered early messages — the iframe just loaded so
+      // any CONNECT it sent during load may have been captured by our early listener
+      if (earlyMessagesRef.current.length > 0 && snackRef.current) {
+        const state = snackRef.current.getState();
+        const webplayerTransport = state.transports?.['webplayer'];
+        if (webplayerTransport) {
+          console.log('[Snack] Replaying', earlyMessagesRef.current.length, 'buffered messages after iframe load');
+          for (const msgData of earlyMessagesRef.current) {
+            webplayerTransport.postMessage({ type: 'synthetic_event', data: msgData });
+          }
+          earlyMessagesRef.current = [];
+        }
       }
-    }, 5000);
+    }, 500);
 
     setIsLoading(false);
   }, []);
@@ -470,6 +521,8 @@ import 'expo-router/entry';
   const handleRefresh = useCallback(() => {
     if (snackRef.current) {
       setIsLoading(true);
+      hasConnectedRef.current = false;
+      earlyMessagesRef.current = [];
       // Reload iframe to get a fresh CONNECT + code push cycle
       if (iframeElRef.current?.contentWindow) {
         try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
