@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Sparkles } from 'lucide-react';
+import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Sparkles, Wand2 } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
 
@@ -12,7 +12,7 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
-  const { files, generatingFiles } = useProjectStore();
+  const { files, generatingFiles, addRuntimeError, clearRuntimeErrors } = useProjectStore();
   const { isRunning: isAgentRunning } = useAgentStore();
 
   const isGenerating = isAgentRunning;
@@ -31,8 +31,9 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const handleRefresh = useCallback(() => {
     setIframeLoaded(false);
     setRuntimeError(null);
+    clearRuntimeErrors();
     setRefreshKey((k) => k + 1);
-  }, []);
+  }, [clearRuntimeErrors]);
 
   // Receive runtime errors from iframe (injected by our bundler)
   useEffect(() => {
@@ -42,11 +43,12 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
       if (data.source === 'rork-preview' && data.type === 'preview-error') {
         const msg = [data.message, data.stack].filter(Boolean).join('\\n');
         setRuntimeError(msg || 'Runtime error');
+        addRuntimeError(msg || 'Runtime error');
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [addRuntimeError]);
 
   // When AI stops generating, automatically refresh the preview to load latest files
   const previousGeneratingRef = useRef(isGenerating);
@@ -162,20 +164,35 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
             
             {/* Runtime Error Overlay */}
             {runtimeError && iframeLoaded && !isGenerating && (
-              <div className="absolute inset-0 z-40 bg-red-950/90 flex flex-col p-6 overflow-auto">
+              <div className="absolute inset-0 z-40 bg-red-950/95 flex flex-col p-6 overflow-hidden">
                 <div className="flex items-center gap-2 mb-4 text-red-400">
                   <AlertCircle className="w-5 h-5" />
-                  <h3 className="font-semibold text-sm">Runtime Error</h3>
+                  <h3 className="font-semibold text-sm">Preview Error</h3>
                 </div>
                 <pre className="text-red-300 text-[11px] whitespace-pre-wrap font-mono bg-black/40 p-4 rounded-lg flex-1 overflow-auto">
                   {runtimeError}
                 </pre>
-                <button
-                  onClick={handleRefresh}
-                  className="mt-4 py-2 bg-red-500/20 text-red-200 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors"
-                >
-                  Dismiss & Reload
-                </button>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={handleRefresh}
+                    className="flex-1 py-2.5 bg-red-500/20 text-red-200 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={16} />
+                    Reload
+                  </button>
+                  <button
+                    onClick={() => {
+                      const event = new CustomEvent('send-to-ai', { 
+                        detail: { message: `I'm getting this build/runtime error:\n\n${runtimeError}\n\nPlease analyze the root cause and fix it.` } 
+                      });
+                      window.dispatchEvent(event);
+                    }}
+                    className="flex-1 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-900/20"
+                  >
+                    <Wand2 size={16} />
+                    Fix with AI
+                  </button>
+                </div>
               </div>
             )}
 

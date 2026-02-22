@@ -198,6 +198,18 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
   // Keep ref always pointing to latest handleAgentRun (avoids stale closures in effects)
   handleAgentRunRef.current = handleAgentRun;
 
+  // Listen for 'send-to-ai' event from other components
+  useEffect(() => {
+    const handleSendToAI = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>;
+      if (customEvent.detail?.message) {
+        handleAgentRunRef.current?.(customEvent.detail.message);
+      }
+    };
+    window.addEventListener('send-to-ai', handleSendToAI);
+    return () => window.removeEventListener('send-to-ai', handleSendToAI);
+  }, []);
+
   // Auto-send initial prompt from landing page.
   useEffect(() => {
     if (!initialPrompt) return;

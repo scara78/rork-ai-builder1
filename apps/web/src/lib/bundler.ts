@@ -276,12 +276,20 @@ root.render(
 
   } catch (error) {
     console.error('Bundle Error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const safeError = errorMessage.replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/</g, '\\<');
+    
     return `<!DOCTYPE html>
 <html>
   <head><title>Build Error</title></head>
   <body style="color:#f87171; background:#450a0a; padding:20px; font-family: monospace;">
+    <script>
+      try {
+        parent.postMessage({ source: 'rork-preview', type: 'preview-error', message: \`Build Error:\\n\${${JSON.stringify(errorMessage)}}\` }, '*');
+      } catch(e) {}
+    </script>
     <h2>Build Error</h2>
-    <pre style="white-space: pre-wrap; font-size: 12px;">${error instanceof Error ? error.message : String(error)}</pre>
+    <pre style="white-space: pre-wrap; font-size: 12px;">${errorMessage}</pre>
   </body>
 </html>`;
   }
