@@ -325,3 +325,63 @@ function PressableWithFeedback({ children, onPress }: { children: React.ReactNod
   <Text style={styles.buttonText}>Action</Text>
 </Pressable>
 \`\`\``;
+
+export const THREE_D_GRAPHICS = `## 3D Games and Graphics (Rork Max Feature)
+
+Rork Max supports 3D graphics and games natively on the web using \`@react-three/fiber\` and \`@react-three/drei\`.
+You can build interactive 3D scenes, spinning objects, and mini-games.
+
+### Basic 3D Scene
+\`\`\`tsx
+import React, { useRef } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
+
+function SpinningCube() {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state, delta) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.x += delta;
+      meshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
+  return (
+    <mesh ref={meshRef}>
+      <boxGeometry args={[2, 2, 2]} />
+      <meshStandardMaterial color="#007AFF" />
+    </mesh>
+  );
+}
+
+export default function GameScreen() {
+  return (
+    <View style={styles.container}>
+      {/* Canvas from fiber acts as a View in React Native Web */}
+      <Canvas style={{ flex: 1 }}>
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[10, 10, 5]} intensity={1} />
+        <SpinningCube />
+        <OrbitControls enableZoom={false} />
+      </Canvas>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  }
+});
+\`\`\`
+
+### Guidelines for 3D
+- Use \`Canvas\` from \`@react-three/fiber\` directly inside a React Native \`View\` with \`flex: 1\`.
+- Remember to import \`three\` when you need specific classes like \`THREE.Mesh\`.
+- \`@react-three/drei\` is available for helpers like \`OrbitControls\`, \`Environment\`, \`Text3D\`.
+- Do NOT use expo-gl; stick to react-three-fiber for Web GL compatibility.
+`;

@@ -93,7 +93,10 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
     "react-dom": "https://esm.sh/react-dom@18.3.1",
     "react-native": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
     "react-native-web": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
-    "lucide-react-native": "https://esm.sh/lucide-react-native@0.475.0?external=react,react-native"
+    "lucide-react-native": "https://esm.sh/lucide-react-native@0.475.0?external=react,react-native",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
   }
 }
 </script>`;
@@ -170,7 +173,7 @@ root.render(
           if (req.startsWith('http')) return { path: req, external: true };
 
           // Core packages that are in the import map -> keep them bare
-          if (['react', 'react-dom', 'react-dom/client', 'react-native', 'react-native-web', 'lucide-react-native'].includes(req)) {
+          if (['react', 'react-dom', 'react-dom/client', 'react-native', 'react-native-web', 'lucide-react-native', 'three', '@react-three/fiber', '@react-three/drei'].includes(req)) {
             return { path: req, external: true };
           }
 

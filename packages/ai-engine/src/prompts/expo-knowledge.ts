@@ -305,6 +305,7 @@ export const EXPO_CONTROLS = `## Package Rules (Sandpack + Vite + React Native W
 | react, react-native | Core — react-native is aliased to react-native-web |
 | lucide-react-native | Icons for the project |
 | react-native-web | Automatically aliased from react-native |
+| three, @react-three/fiber, @react-three/drei | Supported for 3D games and AR UI |
 
 ### BANNED packages — DO NOT USE
 - **expo-router** — NO file-system routing in Vite! Use state-based navigation

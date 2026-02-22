@@ -253,7 +253,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
               </div>
               <p className="font-semibold text-gray-200 text-sm">What do you want to build?</p>
               <p className="text-xs mt-2 text-gray-500 leading-relaxed">
-                Describe your mobile app idea and Rork will generate the code for you.
+                Describe your mobile app idea and Rork Max will generate the code for you.
               </p>
             </div>
           </div>
@@ -272,7 +272,9 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
                     <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
                       <Sparkles className="w-3 h-3 text-black" />
                     </div>
-                    <span className="font-bold text-gray-100 text-sm">Rork</span>
+                    <span className="font-bold text-gray-100 text-sm flex items-center gap-1.5">
+                      Rork <span className="bg-gradient-to-r from-orange-400 to-rose-500 text-transparent bg-clip-text font-black italic">Max</span>
+                    </span>
                     {msg.content.startsWith('[Agent') && (
                       <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
                         Agent
