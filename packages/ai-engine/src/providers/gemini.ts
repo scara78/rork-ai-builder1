@@ -1,4 +1,4 @@
-import { GoogleGenAI, ThinkingLevel, type Content, type Part, Type } from '@google/genai';
+import { GoogleGenAI, type Content, type Part, Type } from '@google/genai';
 import type { 
   AIProvider, 
   GenerateParams, 
@@ -230,9 +230,10 @@ export class GeminiProvider implements AIProvider {
 
       // ── Main agentic loop ──
       while (!isComplete && apiCallCount < MAX_API_CALLS) {
-        // Collect text
+        // Stream text incrementally (not buffered until loop end)
         if (response.text) {
           fullText += response.text;
+          yield { type: 'text', content: response.text };
         }
 
         // Process function calls
@@ -414,14 +415,6 @@ export class GeminiProvider implements AIProvider {
         } else {
           // No valid function calls to respond to — break
           break;
-        }
-      }
-
-      // Yield accumulated text
-      if (fullText) {
-        const chunkSize = 50;
-        for (let i = 0; i < fullText.length; i += chunkSize) {
-          yield { type: 'text', content: fullText.slice(i, i + chunkSize) };
         }
       }
 

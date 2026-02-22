@@ -190,6 +190,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
     } finally {
       stopAgent();
       setStreamingContent('');
+      // Clear the generatingFiles list (setGenerating(false) resets it)
+      useProjectStore.getState().setGenerating(false);
     }
   };
 

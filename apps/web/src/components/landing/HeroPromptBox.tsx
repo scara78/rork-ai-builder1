@@ -16,14 +16,6 @@ const EXAMPLE_PROMPTS = [
 
 type BuildStep = 'idle' | 'checking' | 'creating' | 'opening' | 'redirecting';
 
-const STEP_LABELS: Record<BuildStep, string> = {
-  idle: '',
-  checking: 'Checking authentication...',
-  creating: 'Creating project workspace...',
-  opening: 'Setting up AI agent...',
-  redirecting: 'Opening editor — AI will start building...',
-};
-
 export function HeroPromptBox() {
   const router = useRouter();
   const [prompt, setPrompt] = useState('');
@@ -79,9 +71,12 @@ export function HeroPromptBox() {
 
       router.push(`/editor/${project.id}`);
     } catch {
+      // Save prompt for pickup after redirect
       sessionStorage.setItem('rork_pending_prompt', prompt.trim());
       sessionStorage.setItem('rork_agent_mode', agentMode);
-      router.push('/signup');
+      // Redirect to dashboard (which handles pending prompts) rather than
+      // always to /signup — the user might already be logged in
+      router.push('/dashboard');
     }
   };
 

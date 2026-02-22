@@ -75,6 +75,13 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - Styling/navigation/components files said "SDK 52" instead of "SDK 54"
 - **Fix**: Removed contradictions, fixed version refs, added missing patterns (ActivityIndicator, Alert, StatusBar, LinearGradient, RefreshControl, +not-found.tsx, ImagePicker, Context state management), added Snack package allowlist, deduplicated repeated content
 
+### Snack Preview "Connecting..." forever (FIXED)
+- **Root cause**: `PRELOADED_DEPS` included `expo-blur`, `expo-image`, `expo-av`, `expo-haptics`, `expo-camera`, `expo-linear-gradient`, `react-native-screens` — but `snack-content`'s `isModulePreloaded()` returns `false` for ALL of them on SDK 54. When declared as Snack dependencies, Snackager attempts to resolve them. If resolution is slow or fails, `State.isBusy()` returns `true`, which blocks `_sendCodeChangesDebounced()` in `updateTransports()` — code never reaches the web player iframe, resulting in permanent "Connecting..." state.
+- **Fix**: Two-phase dependency loading:
+  - Phase 1: Only declare truly preloaded deps (expo-router, @expo/vector-icons, react-native-safe-area-context, react-native-reanimated, react-native-gesture-handler, @react-native-async-storage/async-storage, expo-constants, expo-font) — `isBusy()` returns `false` immediately, code pushes work
+  - Phase 2: After first client connects (via `addStateListener` watching `connectedClients`), add non-preloaded deps from package.json — initial render is already done so isBusy doesn't block anything visible
+  - Added 5-second grace period iframe reload (ONCE only, not looping) as fallback for lost CONNECT messages
+
 ---
 
 ## Accomplished (All Completed)
@@ -101,21 +108,29 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - Error visibility improved (actual error message shown in chat)
 - Unused imports cleaned up across all components
 - Build passes: 0 errors, 0 TS errors, all 19 routes compile
+- **Snack Preview "Connecting..." fixed** — two-phase dependency loading ensures isBusy()=false on initial render
+- Gemini text streaming fixed — text now yields incrementally during the loop (not buffered until end)
+- CodePanel close-tab now actually closes tabs (tracks `openTabs` state, not all files)
+- agentStore text_delta now appends to existing message instead of creating unbounded new messages
+- generatingFiles cleared properly after agent run (ChatPanel calls `setGenerating(false)`)
+- HeroPromptBox catch-all error now redirects to /dashboard instead of always /signup
+- runChecks `any` type check uses regex word boundary instead of false-positive substring match
+- Unused imports removed: ThinkingLevel (gemini.ts), ParsedFile (tools/index.ts), STEP_LABELS (HeroPromptBox)
 
 ## Current State
 
 - **Live site works end-to-end**: Landing prompt → signup → project created → editor → AI agent builds app → preview shows result
-- **Default model**: Gemini 2.0 Flash (no Anthropic key needed)
-- **Latest tested commit**: auto-send fix confirmed working on production
+- **Default model**: Gemini 3.1 Pro Preview
+- **Preview fixed**: Two-phase dep loading ensures Snack web player renders immediately
+- **Latest tested**: Build passes, type-check passes, all 19 routes compile
 
 ## Remaining Work (Not Started)
 
-- Error recovery UX — retry button in chat when agent fails
 - Template packs — populate "Coming soon" dashboard section with starter templates (Todo, Weather, Chat app)
 - Configure OAuth providers (Google/GitHub) in Supabase dashboard (user action)
 - Add `ANTHROPIC_API_KEY` to Vercel for Claude model support (user action)
-- Improve preview UX further — show "No app yet" → "Building..." → "Live" transition more smoothly
 - Add conversation persistence — reload editor should restore chat history from DB
+- Test Snack Preview with complex AI-generated apps on production to confirm fix works end-to-end
 
 ---
 

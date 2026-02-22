@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useProjectStore } from '@/stores/projectStore';
 import { X, Circle } from 'lucide-react';
@@ -21,25 +22,40 @@ interface CodePanelProps {
   projectId: string;
 }
 
-export function CodePanel({ projectId }: CodePanelProps) {
+export function CodePanel({ projectId: _projectId }: CodePanelProps) {
   const { activeFile, files, updateFile, setActiveFile } = useProjectStore();
+  const [openTabs, setOpenTabs] = useState<string[]>([]);
   
   const file = activeFile ? files[activeFile] : null;
   
-  // Get all open files (for tabs)
-  const openFiles = Object.values(files);
-
-  const handleCloseTab = (closedPath: string) => {
-    // Activate the nearest other open file
-    const others = openFiles.filter(f => f.path !== closedPath);
-    if (closedPath === activeFile) {
-      if (others.length > 0) {
-        setActiveFile(others[0].path);
-      } else {
-        setActiveFile(null);
-      }
+  // Auto-open tab when activeFile changes (e.g. from file tree click)
+  useEffect(() => {
+    if (activeFile && !openTabs.includes(activeFile)) {
+      setOpenTabs(prev => [...prev, activeFile]);
     }
-  };
+  }, [activeFile, openTabs]);
+
+  // Clean up tabs for deleted files
+  useEffect(() => {
+    setOpenTabs(prev => prev.filter(tab => files[tab]));
+  }, [files]);
+
+  const openFiles = openTabs
+    .map(path => files[path])
+    .filter(Boolean);
+
+  const handleCloseTab = useCallback((closedPath: string) => {
+    setOpenTabs(prev => {
+      const next = prev.filter(p => p !== closedPath);
+      // If we closed the active tab, switch to the nearest remaining tab
+      if (closedPath === useProjectStore.getState().activeFile) {
+        const closedIdx = prev.indexOf(closedPath);
+        const newActive = next[Math.min(closedIdx, next.length - 1)] || null;
+        setActiveFile(newActive);
+      }
+      return next;
+    });
+  }, [setActiveFile]);
 
   const handleEditorWillMount = (monaco: any) => {
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({

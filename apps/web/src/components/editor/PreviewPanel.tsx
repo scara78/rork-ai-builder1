@@ -74,26 +74,28 @@ function transformFilesToSnack(files: Record<string, { path: string; content: st
   return snackFiles;
 }
 
-// Only declare dependencies that are preloaded/bundled in the Snack web player for SDK 54.
-// Non-preloaded deps (expo-image, expo-blur, expo-av, expo-camera, expo-haptics, etc.)
-// cause State.isBusy() to remain true while the snackager resolver fetches their bundles.
-// isBusy() blocks ALL code pushes to the web player — resulting in a permanent
-// "Connecting..." state if any dep fails to resolve.
-// Non-preloaded deps will be added dynamically from the AI-generated package.json.
+// CRITICAL: Only declare dependencies that snack-content's isModulePreloaded() returns true for.
+// Non-preloaded deps cause State.isBusy() to remain true while Snackager resolves them.
+// isBusy() blocks ALL code pushes via _sendCodeChangesDebounced() — resulting in a permanent
+// "Connecting..." state if any dep fails or is slow to resolve.
+//
+// Verified preloaded for SDK 54 via snack-content@3.6.0:
+//   expo-router ✅, @expo/vector-icons ✅, react-native-safe-area-context ✅,
+//   react-native-reanimated ✅, react-native-gesture-handler ✅,
+//   @react-native-async-storage/async-storage ✅, expo-constants ✅,
+//   expo-font ✅, expo-file-system ✅, expo-asset ✅, react-native-web ✅
+//
+// NOT preloaded (will block isBusy): expo-blur, expo-image, expo-av, expo-haptics,
+//   expo-camera, expo-linear-gradient, react-native-screens, expo-status-bar, expo-linking
 const PRELOADED_DEPS: SnackDependencies = {
   'expo-router': { version: '*' },
   '@expo/vector-icons': { version: '*' },
   'react-native-safe-area-context': { version: '*' },
-  'react-native-screens': { version: '*' },
   'react-native-reanimated': { version: '*' },
   'react-native-gesture-handler': { version: '*' },
   '@react-native-async-storage/async-storage': { version: '*' },
-  'expo-blur': { version: '*' },
-  'expo-av': { version: '*' },
-  'expo-haptics': { version: '*' },
-  'expo-linear-gradient': { version: '*' },
-  'expo-camera': { version: '*' },
-  'expo-image': { version: '*' },
+  'expo-constants': { version: '*' },
+  'expo-font': { version: '*' },
 };
 
 
@@ -117,12 +119,19 @@ const BANNED_SNACK_PACKAGES = [
   'react-native-web'
 ];
 
-function extractDependencies(files: Record<string, { path: string; content: string }>): SnackDependencies {
+function extractDependencies(
+  files: Record<string, { path: string; content: string }>,
+  includeNonPreloaded: boolean
+): SnackDependencies {
+  // Always start with truly-preloaded deps (won't trigger isBusy)
+  const deps: SnackDependencies = { ...PRELOADED_DEPS };
+
+  if (!includeNonPreloaded) return deps;
+
+  // Only add package.json deps when explicitly requested (after initial connection)
   const packageFile = Object.values(files).find(f =>
     f.path === 'package.json' || f.path === '/package.json'
   );
-  // Start with only preloaded deps — avoids isBusy() blocking the initial connection
-  const deps: SnackDependencies = { ...PRELOADED_DEPS };
   if (packageFile) {
     try {
       const pkg = JSON.parse(packageFile.content);
@@ -187,6 +196,10 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
   const iframeElRef = useRef<HTMLIFrameElement | null>(null);
+  // Track whether we've already pushed non-preloaded deps (to avoid re-triggering isBusy)
+  const hasAddedExtraDepsRef = useRef(false);
+  // Track if the web player has connected at least once
+  const hasConnectedRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -243,14 +256,26 @@ import 'expo-router/entry';
     return file?.content || '{}';
   }, [files]);
 
-  const dependencies = useMemo(() => extractDependencies({
-    'package.json': { path: 'package.json', content: packageJsonContent }
-  }), [packageJsonContent]);
+  // Phase 1: Only preloaded deps (won't block isBusy)
+  const initialDependencies = useMemo(() => extractDependencies(
+    { 'package.json': { path: 'package.json', content: packageJsonContent } },
+    false // Do NOT include non-preloaded deps initially
+  ), [packageJsonContent]);
+
+  // Phase 2: All deps including non-preloaded (added after first client connects)
+  const fullDependencies = useMemo(() => extractDependencies(
+    { 'package.json': { path: 'package.json', content: packageJsonContent } },
+    true // Include ALL deps from package.json
+  ), [packageJsonContent]);
 
   // === SNACK LIFECYCLE ===
   //
+  // Two-phase dependency approach:
+  //   Phase 1: Start Snack with ONLY preloaded deps → isBusy()=false → code pushes work immediately
+  //   Phase 2: After first client connects, add non-preloaded deps from package.json
+  //
   // We initialize Snack with disabled: false so it starts listening to window messages IMMEDIATELY.
-  // This completely eliminates the race condition where the iframe sends CONNECT before the transport is ready.
+  // This eliminates the race condition where the iframe sends CONNECT before the transport is ready.
 
   useEffect(() => {
     let cancelled = false;
@@ -260,15 +285,17 @@ import 'expo-router/entry';
       snackRef.current = null;
     }
     hadRealFilesRef.current = false;
+    hasAddedExtraDepsRef.current = false;
+    hasConnectedRef.current = false;
 
     async function initSnack() {
       const sdkVersion = await resolveSDKVersion();
       if (cancelled) return;
 
       const snack = new Snack({
-        disabled: false, // Start immediately to catch all iframe messages
+        disabled: false, // Start immediately — catches CONNECT from iframe without race
         files: snackFiles,
-        dependencies,
+        dependencies: initialDependencies, // Phase 1: only preloaded deps
         sdkVersion,
         webPreviewRef,
         codeChangesDelay: 500,
@@ -293,8 +320,25 @@ import 'expo-router/entry';
         if (state.url !== prevState.url) {
           onExpoURLChange?.(state.url);
         }
+
         const clientCount = Object.keys(state.connectedClients || {}).length;
+        const prevClientCount = Object.keys(prevState.connectedClients || {}).length;
         onDevicesChange?.(clientCount);
+
+        // Phase 2: First client connected — safe to add non-preloaded deps now
+        if (clientCount > 0 && prevClientCount === 0) {
+          hasConnectedRef.current = true;
+          setIsLoading(false);
+          console.log('[Snack] Client connected. Adding non-preloaded deps...');
+          // Defer adding extra deps slightly to let the initial code render first
+          setTimeout(() => {
+            if (!snackRef.current || hasAddedExtraDepsRef.current) return;
+            hasAddedExtraDepsRef.current = true;
+            // Add the full set of deps including those from package.json
+            // This may cause isBusy() temporarily, but the initial render is already done
+            snackRef.current.updateDependencies(fullDependencies);
+          }, 1000);
+        }
       });
 
       // Catch runtime errors from Snack and forward them to the UI
@@ -316,6 +360,7 @@ import 'expo-router/entry';
     let unsubscribe: (() => void) | undefined;
     initSnack().then((unsub) => { unsubscribe = unsub; });
 
+    // Safety: clear loading state after 15s even if client never connects
     const timeout = setTimeout(() => setIsLoading(false), 15000);
 
     return () => {
@@ -362,14 +407,18 @@ import 'expo-router/entry';
     } catch { /* ignore */ }
   }, [snackFiles]);
 
+  // Update deps reactively — but only add full deps after client has connected
   useEffect(() => {
     if (!snackRef.current) return;
-    snackRef.current.updateDependencies(dependencies);
+    // Only push full deps if we've already connected (or if hasAddedExtraDeps)
+    // Otherwise just update the preloaded subset
+    const depsToUse = hasConnectedRef.current ? fullDependencies : initialDependencies;
+    snackRef.current.updateDependencies(depsToUse);
     try {
       // @ts-ignore
       snackRef.current.sendCodeChanges?.();
     } catch { /* ignore */ }
-  }, [dependencies]);
+  }, [fullDependencies, initialDependencies]);
 
   const handleIframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
     iframeElRef.current = iframe;
@@ -401,8 +450,19 @@ import 'expo-router/entry';
       } catch { /* ignore */ }
     }, 500);
 
-    // Removed grace period reload. It was causing an infinite reload loop 
-    // because downloading the Snack web player assets takes longer than 2.5s on first load.
+    // Grace period: if no connected clients after 5s, reload iframe ONCE.
+    // This handles the case where CONNECT was lost in transit.
+    // 5s is long enough for the web player to boot even on slow connections.
+    setTimeout(() => {
+      if (!snackRef.current || hasConnectedRef.current) return;
+      const state = snackRef.current.getState();
+      const hasClients = Object.keys(state.connectedClients || {}).length > 0;
+      if (!hasClients && iframeElRef.current?.contentWindow) {
+        console.log('[Snack] No clients after 5s, reloading iframe once');
+        hasConnectedRef.current = false; // Reset so we can detect the next connect
+        try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
+      }
+    }, 5000);
 
     setIsLoading(false);
   }, []);

@@ -3,7 +3,7 @@
  * These tools enable the agent to autonomously build, test, and debug apps
  */
 
-import type { ParsedFile } from '../types';
+// Tool definitions and executor for the AI agent
 
 // Tool definitions for Claude tool_use
 export interface ToolDefinition {
@@ -449,7 +449,7 @@ export function runChecks(
         errors.push(`${path}: missing React import for hooks`);
       }
 
-      if (path.endsWith('.tsx') && content.includes('export default') && content.includes('any')) {
+      if (path.endsWith('.tsx') && content.includes('export default') && /:\s*any\b|<any>|as\s+any\b/.test(content)) {
         warnings.push(`${path}: contains any type in exported component`);
       }
     }

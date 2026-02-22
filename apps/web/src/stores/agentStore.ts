@@ -220,12 +220,18 @@ export const useAgentStore = create<AgentState>()(
 
         case 'text_delta':
           if (event.message) {
-            state.messages.push({
-              id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'thinking',
-              content: event.message,
-              timestamp: new Date(),
-            });
+            // Append to existing thinking message instead of creating a new one per delta
+            const lastMsg = state.messages[state.messages.length - 1];
+            if (lastMsg && lastMsg.type === 'thinking') {
+              lastMsg.content += event.message;
+            } else {
+              state.messages.push({
+                id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                type: 'thinking',
+                content: event.message,
+                timestamp: new Date(),
+              });
+            }
           }
           break;
 
