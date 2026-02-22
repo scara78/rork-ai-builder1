@@ -1,11 +1,11 @@
 /**
- * Expo Component Patterns (SDK 54)
- * Ionicons, expo-image, expo-av, BlurView, Native Controls
+ * Component Patterns for React Native Web + Vite (Sandpack)
+ * Ionicons, Image, Native Controls
  */
 
 export const SF_SYMBOLS = `## Icons (@expo/vector-icons - Ionicons)
 
-Use Ionicons from @expo/vector-icons for app icons. This is the standard icon library for Expo SDK 54.
+Use Ionicons from @expo/vector-icons for app icons. This is the icon library available in the Sandpack/Vite environment.
 
 ### Basic Usage
 \`\`\`tsx
@@ -86,18 +86,18 @@ import { Feather } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 \`\`\``;
 
-export const EXPO_IMAGE = `## expo-image
+export const EXPO_IMAGE = `## Images (react-native Image)
 
-Use expo-image for ALL images. Never use intrinsic <img> or RN Image.
+Use Image from react-native for ALL images. This renders correctly via react-native-web.
 
 ### Basic Usage
 \`\`\`tsx
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 
 <Image
   source={{ uri: 'https://example.com/image.jpg' }}
   style={{ width: 200, height: 200 }}
-  contentFit="cover"
+  resizeMode="cover"
 />
 \`\`\`
 
@@ -106,18 +106,7 @@ import { Image } from 'expo-image';
 <Image
   source={{ uri: imageUrl }}
   style={{ width: '100%', aspectRatio: 16 / 9 }}
-  contentFit="cover"        // cover|contain|fill|none|scale-down
-  placeholder={blurhash}     // Blurhash placeholder
-  transition={200}           // Fade-in duration (ms)
-  cachePolicy="memory-disk"  // Caching strategy
-/>
-\`\`\`
-
-### Local Images
-\`\`\`tsx
-<Image
-  source={require('./assets/logo.png')}
-  style={{ width: 100, height: 100 }}
+  resizeMode="cover"        // cover|contain|stretch|repeat|center
 />
 \`\`\`
 
@@ -130,149 +119,99 @@ import { Image } from 'expo-image';
     height: 48,
     borderRadius: 24,
   }}
-  contentFit="cover"
+  resizeMode="cover"
 />
-\`\`\``;
-
-export const MEDIA_COMPONENTS = `## Media Components (expo-av)
-
-### Audio Playback
-\`\`\`tsx
-import { Audio } from 'expo-av';
-import { useState, useEffect } from 'react';
-
-function AudioPlayer({ uri }: { uri: string }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  const playSound = async () => {
-    if (sound) {
-      await sound.playAsync();
-      setIsPlaying(true);
-    } else {
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri });
-      setSound(newSound);
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded) {
-          setIsPlaying(status.isPlaying);
-        }
-      });
-      await newSound.playAsync();
-      setIsPlaying(true);
-    }
-  };
-
-  const pauseSound = async () => {
-    if (sound) {
-      await sound.pauseAsync();
-      setIsPlaying(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => { sound?.unloadAsync(); };
-  }, [sound]);
-
-  return (
-    <Pressable onPress={isPlaying ? pauseSound : playSound}>
-      <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#fff" />
-    </Pressable>
-  );
-}
 \`\`\`
 
-### Video Playback
+### Placeholder for missing images
 \`\`\`tsx
-import { Video, ResizeMode } from 'expo-av';
-
-function VideoPlayer({ uri }: { uri: string }) {
-  return (
-    <Video
-      source={{ uri }}
-      style={{ width: '100%', aspectRatio: 16 / 9 }}
-      useNativeControls
-      resizeMode={ResizeMode.CONTAIN}
-      isLooping
-    />
-  );
-}
-\`\`\`
-
-### Camera
-\`\`\`tsx
-import { CameraView, useCameraPermissions } from 'expo-camera';
-
-function Camera({ onCapture }: { onCapture: (uri: string) => void }) {
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
-  const [facing, setFacing] = useState<'front' | 'back'>('back');
-
-  if (!permission?.granted) {
+function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
+  if (!uri) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#fff' }}>Camera access required</Text>
-        <Pressable onPress={requestPermission}>
-          <Text style={{ color: '#007AFF', marginTop: 12 }}>Grant Permission</Text>
-        </Pressable>
+      <View style={{
+        width: size, height: size, borderRadius: size / 2,
+        backgroundColor: '#2c2c2e', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Ionicons name="person" size={size * 0.5} color="#8e8e93" />
       </View>
     );
   }
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: size / 2 }}
+      resizeMode="cover"
+    />
+  );
+}
+\`\`\``;
+
+export const MEDIA_COMPONENTS = `## Media (Limited in Sandpack)
+
+Audio, video, and camera are NOT available in the Sandpack/Vite environment.
+For apps that need media features, create placeholder UI that shows a mockup.
+
+### Audio Player Placeholder
+\`\`\`tsx
+function AudioPlayer({ title }: { title: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
 
   return (
-    <View style={{ flex: 1 }}>
-      <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing} />
-      <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>
-        <Pressable
-          onPress={async () => {
-            const photo = await cameraRef.current?.takePictureAsync();
-            if (photo) onCapture(photo.uri);
-          }}
-          style={{
-            width: 72, height: 72, borderRadius: 36,
-            backgroundColor: '#fff', borderWidth: 4, borderColor: '#ccc',
-          }}
-        />
+    <View style={styles.player}>
+      <Pressable onPress={() => setIsPlaying(!isPlaying)}>
+        <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#fff" />
+      </Pressable>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{title}</Text>
+        <View style={styles.progressBar}>
+          <View style={[styles.progress, { width: '35%' }]} />
+        </View>
       </View>
     </View>
   );
 }
+\`\`\`
+
+### Image Placeholder (for camera/gallery features)
+\`\`\`tsx
+function ImagePlaceholder({ onPress }: { onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={styles.imagePlaceholder}>
+      <Ionicons name="camera" size={32} color="#8e8e93" />
+      <Text style={{ color: '#8e8e93', fontSize: 12, marginTop: 8 }}>Tap to add photo</Text>
+    </Pressable>
+  );
+}
 \`\`\``;
 
-export const GLASS_AND_BLUR = `## Blur Effects
+export const GLASS_AND_BLUR = `## Glass / Blur Effects (Web Alternative)
 
-### BlurView (expo-blur)
+BlurView from expo-blur is NOT available. Use semi-transparent backgrounds instead.
+
+### Frosted Glass Effect
 \`\`\`tsx
-import { BlurView } from 'expo-blur';
+function GlassCard({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.glassCard}>
+      {children}
+    </View>
+  );
+}
 
-<BlurView tint="dark" intensity={80} style={styles.blurContainer}>
-  <Text style={{ color: '#fff' }}>Blurred content</Text>
-</BlurView>
-\`\`\`
-
-#### Tint Options
-- Basic: \`light\`, \`dark\`, \`default\`
-- System materials (iOS): \`systemMaterial\`, \`systemThinMaterial\`, \`systemUltraThinMaterial\`, \`systemThickMaterial\`
-- Extra: \`extraLight\`, \`prominent\`
-
-#### Rounded BlurView
-\`\`\`tsx
-<BlurView
-  tint="dark"
-  intensity={80}
-  style={{
+const styles = StyleSheet.create({
+  glassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
-    overflow: 'hidden',  // REQUIRED for rounded corners on BlurView
     padding: 16,
-  }}
->
-  <Text style={{ color: '#fff' }}>Card content</Text>
-</BlurView>
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+});
 \`\`\`
 
-### Overlay with Blur
+### Overlay with Semi-transparent Background
 \`\`\`tsx
-<View style={StyleSheet.absoluteFillObject}>
-  <BlurView tint="dark" intensity={60} style={StyleSheet.absoluteFillObject} />
+<View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0, 0, 0, 0.6)' }]}>
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
     <Text style={{ color: '#fff', fontSize: 24 }}>Modal Content</Text>
   </View>
@@ -351,35 +290,40 @@ function SettingsRow({ icon, title, value, onToggle }: {
 
 export const HAPTICS = `## Haptics
 
-Use expo-haptics conditionally on iOS for delightful experiences:
+Haptics are NOT available in the Sandpack/Vite web environment.
+Do NOT import or use expo-haptics. Instead, focus on visual feedback:
 
+### Visual Feedback Alternatives
 \`\`\`tsx
-import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
+// Scale feedback on press
+function PressableWithFeedback({ children, onPress }: { children: React.ReactNode; onPress: () => void }) {
+  const [pressed, setPressed] = useState(false);
 
-// Selection feedback (light)
-await Haptics.selectionAsync();
-
-// Impact feedback
-await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
-// Notification feedback
-await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={{
+        opacity: pressed ? 0.7 : 1,
+        transform: [{ scale: pressed ? 0.97 : 1 }],
+      }}
+    >
+      {children}
+    </Pressable>
+  );
+}
 \`\`\`
 
-### Conditional Haptics
+### Button with Active State
 \`\`\`tsx
-const handlePress = async () => {
-  if (Platform.OS === 'ios') {
-    await Haptics.selectionAsync();
-  }
-  // ... rest of handler
-};
-\`\`\`
-
-### Don't Double Haptic
-Native controls like Switch have built-in haptics - don't add extra!`;
+<Pressable
+  onPress={handleAction}
+  style={({ pressed }) => [
+    styles.button,
+    pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
+  ]}
+>
+  <Text style={styles.buttonText}>Action</Text>
+</Pressable>
+\`\`\``;

@@ -1,10 +1,9 @@
 /**
- * Expo Official Skills Knowledge Base
- * Extracted from https://github.com/expo/skills
- * For SDK 54 (Expo Snack)
+ * UI Patterns and Knowledge Base
+ * For Sandpack + Vite + React Native Web environment
  */
 
-// Consolidated UI guidelines (navigation details are in navigation.ts to avoid duplication)
+// Consolidated UI guidelines
 export const EXPO_UI_GUIDELINES = `## Common UI Patterns (Frequently Needed)
 
 ### ActivityIndicator (Loading Spinner)
@@ -42,26 +41,6 @@ Alert.alert(
 );
 \`\`\`
 
-### StatusBar
-\`\`\`typescript
-import { StatusBar } from 'expo-status-bar';
-
-// In your root layout or screen
-<StatusBar style="light" />  // light text for dark backgrounds
-\`\`\`
-
-### LinearGradient
-\`\`\`typescript
-import { LinearGradient } from 'expo-linear-gradient';
-
-<LinearGradient
-  colors={['#4c669f', '#3b5998', '#192f6a']}
-  style={{ flex: 1, padding: 16 }}
->
-  <Text style={{ color: '#fff' }}>Content on gradient</Text>
-</LinearGradient>
-\`\`\`
-
 ### Pull-to-Refresh
 \`\`\`typescript
 import { FlatList, RefreshControl } from 'react-native';
@@ -97,56 +76,6 @@ Linking.openURL('https://example.com');
 
 // Open email
 Linking.openURL('mailto:support@example.com');
-
-// Open phone
-Linking.openURL('tel:+1234567890');
-\`\`\`
-
-### +not-found.tsx (404 Handler)
-\`\`\`typescript
-// app/+not-found.tsx
-import { View, Text, StyleSheet } from 'react-native';
-import { Link, Stack } from 'expo-router';
-
-export default function NotFoundScreen() {
-  return (
-    <>
-      <Stack.Screen options={{ title: 'Not Found' }} />
-      <View style={styles.container}>
-        <Text style={styles.title}>Page not found</Text>
-        <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home</Text>
-        </Link>
-      </View>
-    </>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a', padding: 20 },
-  title: { fontSize: 20, fontWeight: '600', color: '#fff', marginBottom: 16 },
-  link: { marginTop: 16 },
-  linkText: { fontSize: 16, color: '#007AFF' },
-});
-\`\`\`
-
-### ImagePicker
-\`\`\`typescript
-import * as ImagePicker from 'expo-image-picker';
-
-async function pickImage() {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    aspect: [4, 3],
-    quality: 1,
-  });
-
-  if (!result.canceled) {
-    return result.assets[0].uri;
-  }
-  return null;
-}
 \`\`\`
 
 ### Simple State Management (React Context)
@@ -172,8 +101,7 @@ export function useApp() {
 }
 \`\`\``;
 
-// From expo-app-design/skills/native-data-fetching/SKILL.md
-export const EXPO_DATA_FETCHING = `## Data Fetching Patterns (from Expo Official Skills)
+export const EXPO_DATA_FETCHING = `## Data Fetching Patterns
 
 ### Basic Fetch
 \`\`\`typescript
@@ -221,13 +149,6 @@ function useApi<T>(url: string) {
 }
 \`\`\`
 
-### Error Handling Best Practices
-- Always check response.ok before parsing
-- Use try/catch around all network calls
-- Show user-friendly error messages
-- Implement retry logic for transient failures
-- Handle offline state gracefully
-
 ### Request Cancellation
 Use AbortController to cancel requests when component unmounts:
 \`\`\`typescript
@@ -245,97 +166,123 @@ useEffect(() => {
 }, [url]);
 \`\`\``;
 
-// From expo-app-design/references/animations.md (SDK 54 compatible parts)
-export const EXPO_ANIMATIONS = `## Animations with Reanimated (from Expo Official Skills)
+export const EXPO_ANIMATIONS = `## Animations
 
-### Entering/Exiting Animations
+### Simple Animations with React Native Animated
 \`\`\`typescript
-import Animated, { FadeIn, FadeOut, SlideInRight } from 'react-native-reanimated';
+import { Animated, Easing } from 'react-native';
+import { useRef, useEffect } from 'react';
 
-// Fade in on mount
-<Animated.View entering={FadeIn.duration(300)}>
-  <Text>Hello</Text>
-</Animated.View>
+function FadeInView({ children }: { children: React.ReactNode }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-// Slide in from right
-<Animated.View entering={SlideInRight.duration(400)}>
-  <Text>Sliding in</Text>
-</Animated.View>
-
-// Staggered list animation
-{items.map((item, index) => (
-  <Animated.View 
-    key={item.id}
-    entering={FadeIn.delay(index * 100).duration(300)}
-  >
-    <ItemCard item={item} />
-  </Animated.View>
-))}
-\`\`\`
-
-### Gesture-driven Animations
-\`\`\`typescript
-import { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-
-function DraggableCard() {
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-
-  const gesture = Gesture.Pan()
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-    })
-    .onEnd(() => {
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
-  }));
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View style={[styles.card, animatedStyle]} />
-    </GestureDetector>
+    <Animated.View style={{ opacity: fadeAnim }}>
+      {children}
+    </Animated.View>
+  );
+}
+\`\`\`
+
+### Slide-In Animation
+\`\`\`typescript
+function SlideInView({ children }: { children: React.ReactNode }) {
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ 
+      opacity: fadeAnim, 
+      transform: [{ translateY: slideAnim }] 
+    }}>
+      {children}
+    </Animated.View>
+  );
+}
+\`\`\`
+
+### Staggered List Animation
+\`\`\`typescript
+function StaggeredList({ items }: { items: any[] }) {
+  return (
+    <>
+      {items.map((item, index) => {
+        const fadeAnim = useRef(new Animated.Value(0)).current;
+        
+        useEffect(() => {
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            delay: index * 100,
+            useNativeDriver: true,
+          }).start();
+        }, []);
+        
+        return (
+          <Animated.View key={item.id} style={{ opacity: fadeAnim }}>
+            <ItemCard item={item} />
+          </Animated.View>
+        );
+      })}
+    </>
   );
 }
 \`\`\``;
 
-// From expo-app-design/references/storage.md
-export const EXPO_STORAGE = `## Storage Patterns (from Expo Official Skills)
+export const EXPO_STORAGE = `## Storage Patterns
 
-### AsyncStorage (Key-Value)
+### localStorage Wrapper (AsyncStorage replacement for web)
 \`\`\`typescript
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Save
-await AsyncStorage.setItem('user_preferences', JSON.stringify({ theme: 'dark' }));
-
-// Load
-const prefs = await AsyncStorage.getItem('user_preferences');
-const parsed = prefs ? JSON.parse(prefs) : null;
-
-// Remove
-await AsyncStorage.removeItem('user_preferences');
+// utils/storage.ts
+const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try { localStorage.setItem(key, value); } catch { /* ignore */ }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+  },
+};
+export default storage;
 \`\`\`
 
 ### Custom Hook for Persistent State
 \`\`\`typescript
 import { useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import storage from '../utils/storage';
 
 function useStoredState<T>(key: string, defaultValue: T) {
   const [value, setValue] = useState<T>(defaultValue);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(key).then(stored => {
+    storage.getItem(key).then(stored => {
       if (stored) setValue(JSON.parse(stored));
       setLoaded(true);
     });
@@ -343,57 +290,48 @@ function useStoredState<T>(key: string, defaultValue: T) {
 
   const setAndStore = (newValue: T) => {
     setValue(newValue);
-    AsyncStorage.setItem(key, JSON.stringify(newValue));
+    storage.setItem(key, JSON.stringify(newValue));
   };
 
   return [value, setAndStore, loaded] as const;
 }
 \`\`\``;
 
-// Native controls (Switch, TextInput, Haptics) are covered in components.ts — no duplication needed
-export const EXPO_CONTROLS = `## Snack Package Allowlist (STRICT — SDK 54)
-
-ONLY use packages from this exact list. Using any other package will cause a 500 error or CORS failure in the Snack web player.
+export const EXPO_CONTROLS = `## Package Rules (Sandpack + Vite + React Native Web)
 
 ### Allowed packages
-| Package | Import example |
-|---------|---------------|
-| react, react-native | core — always available |
-| expo, expo-router, expo-status-bar | \`import { Stack } from 'expo-router'\` |
-| expo-image | \`import { Image } from 'expo-image'\` — use version **~1.13** (NOT 3.x) |
-| expo-blur | \`import { BlurView } from 'expo-blur'\` |
-| expo-linear-gradient | \`import { LinearGradient } from 'expo-linear-gradient'\` |
-| expo-av | \`import { Audio, Video } from 'expo-av'\` |
-| expo-camera | \`import { CameraView } from 'expo-camera'\` |
-| expo-image-picker | \`import * as ImagePicker from 'expo-image-picker'\` |
-| expo-haptics | \`import * as Haptics from 'expo-haptics'\` |
-| expo-font | \`import * as Font from 'expo-font'\` |
-| @expo/vector-icons | \`import { Ionicons } from '@expo/vector-icons'\` |
-| react-native-safe-area-context | \`import { useSafeAreaInsets } from 'react-native-safe-area-context'\` |
-| react-native-reanimated | \`import Animated from 'react-native-reanimated'\` |
-| react-native-gesture-handler | \`import { GestureDetector } from 'react-native-gesture-handler'\` |
-| @react-native-async-storage/async-storage | \`import AsyncStorage from '@react-native-async-storage/async-storage'\` |
+| Package | Notes |
+|---------|-------|
+| react, react-native | Core — react-native is aliased to react-native-web |
+| @expo/vector-icons | Ionicons, MaterialIcons, FontAwesome, Feather |
+| react-native-web | Automatically aliased from react-native |
 
-### BANNED packages — DO NOT USE (causes CORS/500 errors in Snack)
-- **lucide-react-native** — use \`@expo/vector-icons\` Ionicons instead
-- **lucide-react** — web only, not React Native
+### BANNED packages — DO NOT USE
+- **expo-router** — NO file-system routing in Vite! Use state-based navigation
+- **expo-status-bar** — not available in web environment
+- **expo-blur** — not available in react-native-web
+- **expo-linear-gradient** — use CSS-style gradient via web styles if needed
+- **expo-image** — use \`<Image>\` from react-native directly
+- **expo-av** — no audio/video support in Sandpack
+- **expo-camera** — no camera in browser sandbox
+- **expo-haptics** — no haptics on web
+- **expo-image-picker** — no file picker in sandbox
+- **expo-constants**, **expo-font**, **expo-file-system** — not available
+- **react-native-safe-area-context** — use manual padding instead
+- **react-native-gesture-handler** — use Pressable from react-native
+- **react-native-reanimated** — use Animated from react-native
+- **@react-native-async-storage/async-storage** — use localStorage wrapper (see storage patterns)
+- **lucide-react-native** — use @expo/vector-icons Ionicons
 - **@tamagui/core** or any tamagui package
 - **nativewind** or **tailwind** — use StyleSheet.create
-- **expo-image@3.x** — only ~1.13 is in SDK 54 Snack
-- **expo-symbols** or **SymbolView**
-- **expo-audio** or **expo-video** (standalone) — use **expo-av**
-- **react-native-svg** — not bundled in Snack SDK 54
-- **react-native-maps** — requires native build
-- **@shopify/flash-list** — not in Snack
-- **react-native-deck-swiper**, **react-native-swiper**, **react-native-snap-carousel** — NOT IN SNACK! For Dating App swipe cards or carousels, you MUST build them from scratch using \`PanResponder\`, \`react-native-reanimated\`, or \`FlatList\`.
-- Any icon library except **@expo/vector-icons**
+- **react-native-svg** — not available
+- **react-native-maps** — not available
+- **@shopify/flash-list** — use FlatList from react-native
 
 ### Icons: ALWAYS use Ionicons from @expo/vector-icons
 \`\`\`typescript
 import { Ionicons } from '@expo/vector-icons';
-// Use: heart, heart-outline, star, star-outline, person, person-outline,
-//      home, home-outline, search, settings, camera, image, etc.
 <Ionicons name="heart" size={24} color="#FF6B6B" />
 \`\`\`
 
-Do NOT import packages outside the allowed list above.`;
+Do NOT import packages outside the allowed list above. Keep dependencies minimal.`;
