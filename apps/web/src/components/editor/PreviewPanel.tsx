@@ -32,14 +32,42 @@ async function resolveSDKVersion(): Promise<SDKVersion> {
 
 function transformFilesToSnack(files: Record<string, { path: string; content: string }>): SnackFiles {
   const snackFiles: SnackFiles = {};
+  
+  let hasExpoRouter = false;
+  Object.keys(files).forEach((path) => {
+    if (path.startsWith('app/') || path.startsWith('/app/')) hasExpoRouter = true;
+  });
+
   Object.values(files).forEach((file) => {
     const path = file.path.startsWith('/') ? file.path.slice(1) : file.path;
     if (path.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/i)) return;
     
-    // EXTREMELY IMPORTANT: Never send configuration files to Snack Web Player.
+    // We do NOT send custom babel or metro configs to Snack Web Player.
     // Snack already provides its own babel, typescript, and metro configurations.
-    // If we send custom ones, it breaks the entire Preview with Babel/Flow errors.
-
+    // Sending custom ones often breaks the entire Preview with Babel/Flow errors.
+    if (['babel.config.js', 'metro.config.js', 'tsconfig.json'].includes(path)) {
+      return;
+    }
+    
+    // For package.json, we must ensure it has the correct 'main' entry for Expo Router
+    if (path === 'package.json' && hasExpoRouter) {
+      try {
+        const pkg = JSON.parse(file.content);
+        pkg.main = 'expo-router/entry';
+        
+        // Remove any banned packages from the dependencies to prevent Snackager from hanging
+        if (pkg.dependencies) {
+          BANNED_SNACK_PACKAGES.forEach(banned => {
+            delete pkg.dependencies[banned];
+          });
+        }
+        
+        snackFiles[path] = { type: 'CODE', contents: JSON.stringify(pkg, null, 2) };
+        return;
+      } catch (e) {
+        // Fallback if parse fails
+      }
+    }
     
     snackFiles[path] = { type: 'CODE', contents: file.content };
   });
@@ -56,8 +84,16 @@ const PRELOADED_DEPS: SnackDependencies = {
   'expo-router': { version: '*' },
   '@expo/vector-icons': { version: '*' },
   'react-native-safe-area-context': { version: '*' },
+  'react-native-screens': { version: '*' },
   'react-native-reanimated': { version: '*' },
+  'react-native-gesture-handler': { version: '*' },
   '@react-native-async-storage/async-storage': { version: '*' },
+  'expo-blur': { version: '*' },
+  'expo-av': { version: '*' },
+  'expo-haptics': { version: '*' },
+  'expo-linear-gradient': { version: '*' },
+  'expo-camera': { version: '*' },
+  'expo-image': { version: '*' },
 };
 
 
@@ -152,18 +188,10 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
   const snackRef = useRef<Snack | null>(null);
   const iframeElRef = useRef<HTMLIFrameElement | null>(null);
 
-  // Buffer to capture CONNECT messages from iframe that arrive before
-  // the Snack transport starts listening.
-  const earlyMessagesRef = useRef<MessageEvent[]>([]);
-  const transportStartedRef = useRef(false);
-
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [webPreviewURL, setWebPreviewURL] = useState<string | undefined>(undefined);
   const [deviceSize, setDeviceSize] = useState<'phone' | 'tablet'>('phone');
-
-  // The S3 origin the web player iframe will postMessage from.
-  const webPlayerOriginRef = useRef<string | null>(null);
 
   const snackFiles = useMemo(() => {
     const transformed = transformFilesToSnack(files);
@@ -183,6 +211,26 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 import 'expo-router/entry';
 `,
       };
+      
+      // Ensure app.json has expo-router plugin
+      try {
+        let appJson = { expo: { name: 'RorkApp', slug: 'rork-app', plugins: ['expo-router'] } };
+        if (transformed['app.json']) {
+          const parsed = JSON.parse(transformed['app.json'].contents as string);
+          if (!parsed.expo) parsed.expo = {};
+          if (!parsed.expo.plugins) parsed.expo.plugins = [];
+          if (!parsed.expo.plugins.includes('expo-router')) {
+            parsed.expo.plugins.push('expo-router');
+          }
+          appJson = parsed;
+        }
+        transformed['app.json'] = {
+          type: 'CODE',
+          contents: JSON.stringify(appJson, null, 2)
+        };
+      } catch (e) {
+        // ignore parse error
+      }
     } else if (!hasAppJs && !hasExpoRouter) {
       transformed['App.js'] = { type: 'CODE', contents: DEFAULT_APP };
     }
@@ -201,16 +249,8 @@ import 'expo-router/entry';
 
   // === SNACK LIFECYCLE ===
   //
-  // The web player iframe (from S3) sends a CONNECT postMessage as soon as it
-  // boots. The Snack SDK's webplayer transport only listens for this message
-  // AFTER setDisabled(false) calls transport.start() -> addEventListener.
-  //
-  // Race condition: iframe sends CONNECT before we call setDisabled(false).
-  // The CONNECT is lost, connectionsCount stays 0, and sendCodeChanges is a no-op.
-  //
-  // Fix: We install our OWN early listener on the window BEFORE the iframe loads.
-  // This captures any CONNECT from the S3 origin. After transport starts, we
-  // replay the captured message by re-dispatching it so the transport picks it up.
+  // We initialize Snack with disabled: false so it starts listening to window messages IMMEDIATELY.
+  // This completely eliminates the race condition where the iframe sends CONNECT before the transport is ready.
 
   useEffect(() => {
     let cancelled = false;
@@ -219,36 +259,14 @@ import 'expo-router/entry';
       snackRef.current.setOnline(false);
       snackRef.current = null;
     }
-    earlyMessagesRef.current = [];
-    transportStartedRef.current = false;
     hadRealFilesRef.current = false;
-
-    // Early listener: capture CONNECT messages from the web player iframe
-    // before the Snack transport is ready.
-    const earlyListener = (event: MessageEvent) => {
-      if (transportStartedRef.current) return; // Transport already handles it
-      // Capture messages from S3 origins (web player) or same origin
-      const origin = event.origin || '';
-      const isSnackOrigin = origin.includes('snack-web-player') || 
-        (webPlayerOriginRef.current && origin === webPlayerOriginRef.current);
-      if (isSnackOrigin) {
-        try {
-          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          if (data.type === 'CONNECT' || data.type === 'MESSAGE') {
-            console.log('[Snack] Early capture:', data.type, 'from', origin);
-            earlyMessagesRef.current.push(event);
-          }
-        } catch { /* not JSON, ignore */ }
-      }
-    };
-    window.addEventListener('message', earlyListener, false);
 
     async function initSnack() {
       const sdkVersion = await resolveSDKVersion();
       if (cancelled) return;
 
       const snack = new Snack({
-        disabled: true,
+        disabled: false, // Start immediately to catch all iframe messages
         files: snackFiles,
         dependencies,
         sdkVersion,
@@ -256,17 +274,13 @@ import 'expo-router/entry';
         codeChangesDelay: 500,
       });
 
+      snack.setOnline(true);
       snackRef.current = snack;
 
       const initialState = snack.getState();
       if (initialState.webPreviewURL) {
         setWebPreviewURL(initialState.webPreviewURL);
         console.log('[Snack] Web preview URL:', initialState.webPreviewURL);
-        // Extract the S3 origin so we can filter early messages
-        try {
-          webPlayerOriginRef.current = new URL(initialState.webPreviewURL).origin;
-          console.log('[Snack] Web player origin:', webPlayerOriginRef.current);
-        } catch { /* ignore */ }
       }
       if (initialState.url) {
         onExpoURLChange?.(initialState.url);
@@ -302,12 +316,11 @@ import 'expo-router/entry';
     let unsubscribe: (() => void) | undefined;
     initSnack().then((unsub) => { unsubscribe = unsub; });
 
-    const timeout = setTimeout(() => setIsLoading(false), 20000);
+    const timeout = setTimeout(() => setIsLoading(false), 15000);
 
     return () => {
       cancelled = true;
       clearTimeout(timeout);
-      window.removeEventListener('message', earlyListener, false);
       unsubscribe?.();
       if (snackRef.current) {
         snackRef.current.setOnline(false);
@@ -333,9 +346,7 @@ import 'expo-router/entry';
     // Transition: empty → has real files while transport already running.
     // (Happens on page reload: files load from DB after iframe is already connected.)
     // Reload the iframe so Expo Router re-bootstraps with the new file tree.
-    // Do NOT set transportStartedRef = false here — that would cause all subsequent
-    // sendCodeChanges() calls to be skipped (the ref gates the push below).
-    if (hasExpoRouterFiles && !hadRealFilesRef.current && transportStartedRef.current) {
+    if (hasExpoRouterFiles && !hadRealFilesRef.current) {
       hadRealFilesRef.current = true;
       if (iframeElRef.current?.contentWindow) {
         try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
@@ -345,24 +356,19 @@ import 'expo-router/entry';
 
     if (hasExpoRouterFiles) hadRealFilesRef.current = true;
 
-    // If transport is already started and files updated, push code changes
-    if (transportStartedRef.current) {
-      try {
-        // @ts-ignore — sendCodeChanges is public but not in type stubs
-        snackRef.current.sendCodeChanges?.();
-      } catch { /* ignore */ }
-    }
+    try {
+      // @ts-ignore — sendCodeChanges is public but not in type stubs
+      snackRef.current.sendCodeChanges?.();
+    } catch { /* ignore */ }
   }, [snackFiles]);
 
   useEffect(() => {
     if (!snackRef.current) return;
     snackRef.current.updateDependencies(dependencies);
-    if (transportStartedRef.current) {
-      try {
-        // @ts-ignore
-        snackRef.current.sendCodeChanges?.();
-      } catch { /* ignore */ }
-    }
+    try {
+      // @ts-ignore
+      snackRef.current.sendCodeChanges?.();
+    } catch { /* ignore */ }
   }, [dependencies]);
 
   const handleIframeRef = useCallback((iframe: HTMLIFrameElement | null) => {
@@ -383,43 +389,20 @@ import 'expo-router/entry';
 
     if (!snackRef.current) return;
 
-    console.log('[Snack] iframe loaded, enabling transport...');
+    console.log('[Snack] iframe loaded');
 
-    // Enable transport immediately (no artificial delay).
-    // The transport calls window.addEventListener('message', handler).
-    snackRef.current.setDisabled(false);
-    snackRef.current.setOnline(true);
-    transportStartedRef.current = true;
-
-    // Replay any CONNECT messages that arrived before the transport started.
-    // We re-dispatch them on the window so the transport's own listener picks them up.
-    if (earlyMessagesRef.current.length > 0) {
-      console.log('[Snack] Replaying', earlyMessagesRef.current.length, 'early messages');
-      for (const captured of earlyMessagesRef.current) {
-        window.dispatchEvent(new MessageEvent('message', {
-          data: captured.data,
-          origin: captured.origin,
-          source: captured.source,
-        }));
-      }
-      earlyMessagesRef.current = [];
-    }
-
-    // Force a code push after the transport connects (or reconnects after a reload).
-    // This ensures the web player always receives the latest files after each iframe load,
-    // including the case where isBusy() was previously blocking code delivery.
+    // Force a code push after the iframe loads to ensure it gets the latest files.
     setTimeout(() => {
       if (!snackRef.current) return;
       try {
-        // @ts-ignore — sendCodeChanges is public but not in type stubs
+        // @ts-ignore
         snackRef.current.sendCodeChanges?.();
         console.log('[Snack] Post-load code push triggered');
       } catch { /* ignore */ }
     }, 500);
 
     // Grace period: if no connected clients after 2.5s, the web player may
-    // have sent CONNECT even before our early listener was ready (very fast load).
-    // In that case, reload the iframe to force a fresh CONNECT.
+    // have failed to connect properly. In that case, reload the iframe.
     setTimeout(() => {
       if (!snackRef.current) return;
       const state = snackRef.current.getState();
@@ -438,8 +421,6 @@ import 'expo-router/entry';
   const handleRefresh = useCallback(() => {
     if (snackRef.current) {
       setIsLoading(true);
-      transportStartedRef.current = false;
-      earlyMessagesRef.current = [];
       // Reload iframe to get a fresh CONNECT + code push cycle
       if (iframeElRef.current?.contentWindow) {
         try { iframeElRef.current.contentWindow.location.reload(); } catch { /* cross-origin */ }
