@@ -432,3 +432,58 @@ export function getLanguageFromPath(path: string): string {
       return 'plaintext';
   }
 }
+
+/**
+ * Run verification checks on code
+ */
+export function runChecks(
+  files: Record<string, string>,
+  checks: Array<'typecheck' | 'lint' | 'build'>
+): ToolResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  for (const [path, content] of Object.entries(files)) {
+    if (checks.includes('typecheck')) {
+      if ((content.includes('useState') || content.includes('useEffect')) && !content.includes("from 'react'") && !content.includes('from "react"')) {
+        errors.push(`${path}: missing React import for hooks`);
+      }
+
+      if (path.endsWith('.tsx') && content.includes('export default') && content.includes('any')) {
+        warnings.push(`${path}: contains any type in exported component`);
+      }
+    }
+
+    if (checks.includes('lint')) {
+      if (/TODO|FIXME/.test(content)) {
+        warnings.push(`${path}: contains TODO/FIXME markers`);
+      }
+      if (path.endsWith('.tsx') && (content.includes('<div') || content.includes('<span') || content.includes('<p>') || content.includes('<a '))) {
+        errors.push(`${path}: uses web HTML tags (div, span, p, a) which are invalid in React Native code. Use View, Text, etc.`);
+      }
+    }
+
+    if (checks.includes('build')) {
+      if ((path.endsWith('.tsx') || path.endsWith('.ts')) && !content.includes('export')) {
+        warnings.push(`${path}: file has no export`);
+      }
+      if (path.endsWith('.tsx') && !/\breturn\s*\(/.test(content) && !content.includes('export default function')) {
+        warnings.push(`${path}: component may not return JSX`);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      success: false,
+      error: errors.join('\n'),
+      data: { errors, warnings, checks },
+    };
+  }
+
+  return {
+    success: true,
+    output: `${checks.join(', ')} checks passed`,
+    data: { warnings, checks },
+  };
+}

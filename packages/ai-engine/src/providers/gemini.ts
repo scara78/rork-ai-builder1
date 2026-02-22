@@ -6,7 +6,7 @@ import type {
   StreamChunk,
   ConversationMessage 
 } from '../types';
-import { getLanguageFromPath } from '../tools';
+import { getLanguageFromPath, runChecks } from '../tools';
 import { FULL_SYSTEM_PROMPT } from '../prompts';
 
 const GEMINI_MODEL = 'gemini-3.1-pro-preview';
@@ -126,6 +126,19 @@ function buildContinuationPrompt(remainingFiles: string[]): string {
   ].join('\n');
 }
 
+function buildErrorFixPrompt(errors: string[]): string {
+  return [
+    `VERIFICATION FAILED. The code you generated has the following ${errors.length} errors:`,
+    '',
+    ...errors.slice(0, 10).map((e) => `- ${e}`),
+    errors.length > 10 ? `- ...and ${errors.length - 10} more errors.` : '',
+    '',
+    'You MUST fix these errors before calling complete.',
+    'Call write_file to overwrite the files containing these errors with the correct code.',
+    'Do NOT stop or explain — just call write_file immediately to fix the issues.',
+  ].join('\n');
+}
+
 // ── GeminiProvider ──────────────────────────────────────────────────────
 
 export class GeminiProvider implements AIProvider {
@@ -203,6 +216,7 @@ export class GeminiProvider implements AIProvider {
 
     let fullText = '';
     const writtenFiles = new Set<string>();
+    const generatedCodeContext: Record<string, string> = { ...currentFiles };
     let planFileTree: string[] = [];
     let planData: StreamChunk['plan'] | null = null;
     let isComplete = false;
@@ -300,6 +314,7 @@ export class GeminiProvider implements AIProvider {
             if (args.path && args.content) {
               const filePath = args.path.trim().replace(/^\/+/, '');
               writtenFiles.add(filePath);
+              generatedCodeContext[filePath] = args.content;
 
               yield {
                 type: 'file',
@@ -366,10 +381,24 @@ export class GeminiProvider implements AIProvider {
         if (agentMode === 'build' && planFileTree.length > 0) {
           const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
           if (remainingFiles.length === 0 && !isComplete) {
-            // All plan files written — auto-complete
-            isComplete = true;
-            yield { type: 'phase', phase: 'complete' };
-            break;
+            // All plan files written. Let's run a verification check before we allow it to complete.
+            const checkResult = runChecks(generatedCodeContext, ['typecheck', 'lint', 'build']);
+            
+            if (!checkResult.success && checkResult.error) {
+              // Self-healing: Verification failed. We intercept the completion and force the AI to fix errors.
+              const errors = checkResult.error.split('\n');
+              const errorPrompt = buildErrorFixPrompt(errors);
+              
+              yield { type: 'text', content: `\n[Verification failed. Auto-fixing ${errors.length} errors...]\n` };
+              response = await chat.sendMessage({ message: errorPrompt });
+              apiCallCount++;
+              continue;
+            } else {
+              // All checks passed — auto-complete
+              isComplete = true;
+              yield { type: 'phase', phase: 'complete' };
+              break;
+            }
           }
         } else if (agentMode === 'plan' && planFileTree.length > 0 && !isComplete) {
            // We just wanted a plan, so we can auto-complete now
