@@ -1,12 +1,12 @@
 /**
- * Expo Styling Rules (SDK 54 compatible)
- * StyleSheet.create, legacy shadows, safe areas
+ * Styling Rules for React Native Web preview
+ * StyleSheet.create, shadows, safe areas, animations
  */
 
-export const STYLING_RULES = `## Styling Rules (SDK 54)
+export const STYLING_RULES = `## Styling Rules
 
 ### General Rules
-- Use **StyleSheet.create** for all styles (more reliable in Expo Snack)
+- Use **StyleSheet.create** for all styles
 - **CSS and Tailwind NOT supported** - use React Native styles only
 - Prefer flex gap over margin/padding where supported
 - Prefer padding over margin where possible
@@ -18,7 +18,7 @@ export const STYLING_RULES = `## Styling Rules (SDK 54)
 - When padding a ScrollView, use \`contentContainerStyle\` padding instead of ScrollView padding
 
 ### Shadows
-Use React Native shadow styles (NOT CSS boxShadow - not supported in Expo Snack SDK 54):
+Use React Native shadow styles (NOT CSS boxShadow):
 
 \`\`\`tsx
 // CORRECT - React Native shadow styles
@@ -38,22 +38,22 @@ const shadows = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
     elevation: 1,
   },
   md: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
     elevation: 3,
   },
   lg: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
     elevation: 5,
   },
 };
@@ -231,14 +231,15 @@ Use flexbox instead of absolute positioning:
 \`\`\`
 
 ### Safe Area
+The preview has a built-in status bar (54px top) and home indicator (34px bottom).
+Do NOT import react-native-safe-area-context. Use constant padding instead:
 \`\`\`tsx
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// Safe area constants (matches the phone chrome in preview)
+const SAFE_AREA = { top: 54, bottom: 34 };
 
 function Screen() {
-  const insets = useSafeAreaInsets();
-  
   return (
-    <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+    <View style={{ paddingTop: SAFE_AREA.top, paddingBottom: SAFE_AREA.bottom }}>
       {/* Content */}
     </View>
   );
@@ -259,47 +260,75 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 
 export const ANIMATION_STYLING = `## Animation Patterns
 
-### Entering/Exiting Animations
-Add animations for state changes using react-native-reanimated:
+IMPORTANT: Do NOT use react-native-reanimated. It is NOT available in this environment.
+Use ONLY \`Animated\` from \`react-native\` for all animations.
 
-\`\`\`tsx
-import Animated, { FadeIn, FadeOut, SlideInRight } from 'react-native-reanimated';
-
-// Fade in/out
-<Animated.View entering={FadeIn} exiting={FadeOut}>
-  <Card />
-</Animated.View>
-
-// Slide in from right
-<Animated.View entering={SlideInRight.duration(300)}>
-  <ListItem />
-</Animated.View>
-\`\`\`
-
-### Layout Animations
-\`\`\`tsx
-import Animated, { LinearTransition } from 'react-native-reanimated';
-
-<Animated.View layout={LinearTransition.springify()}>
-  {/* Content that changes size */}
-</Animated.View>
-\`\`\`
-
-### Simple Animated API (no reanimated needed)
+### Fade-In Animation
 \`\`\`tsx
 import { Animated } from 'react-native';
+import { useRef, useEffect } from 'react';
 
-const opacity = useRef(new Animated.Value(0)).current;
+function FadeInView({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
 
-useEffect(() => {
-  Animated.timing(opacity, {
-    toValue: 1,
-    duration: 300,
-    useNativeDriver: true,
-  }).start();
-}, []);
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
-<Animated.View style={{ opacity }}>
-  <Content />
+  return <Animated.View style={{ opacity }}>{children}</Animated.View>;
+}
+\`\`\`
+
+### Slide-In + Fade Animation
+\`\`\`tsx
+function SlideInView({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
+  const translateY = useRef(new Animated.Value(20)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 350,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 350,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+\`\`\`
+
+### Spring Animation
+\`\`\`tsx
+const scale = useRef(new Animated.Value(1)).current;
+
+const onPressIn = () => {
+  Animated.spring(scale, { toValue: 0.95, useNativeDriver: true }).start();
+};
+const onPressOut = () => {
+  Animated.spring(scale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
+};
+
+<Animated.View style={{ transform: [{ scale }] }}>
+  <Pressable onPressIn={onPressIn} onPressOut={onPressOut}>
+    <Content />
+  </Pressable>
 </Animated.View>
 \`\`\``;

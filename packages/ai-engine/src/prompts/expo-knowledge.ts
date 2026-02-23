@@ -1,6 +1,6 @@
 /**
  * UI Patterns and Knowledge Base
- * For Sandpack + Vite + React Native Web environment
+ * For React Native Web preview environment
  */
 
 // Consolidated UI guidelines
@@ -297,7 +297,7 @@ function useStoredState<T>(key: string, defaultValue: T) {
 }
 \`\`\``;
 
-export const EXPO_CONTROLS = `## Package Rules (Sandpack + Vite + React Native Web)
+export const EXPO_CONTROLS = `## Package Rules (React Native Web Preview)
 
 ### Allowed packages
 | Package | Notes |
@@ -308,15 +308,15 @@ export const EXPO_CONTROLS = `## Package Rules (Sandpack + Vite + React Native W
 | three, @react-three/fiber, @react-three/drei | Supported for 3D games and AR UI |
 
 ### BANNED packages — DO NOT USE
-- **expo-router** — NO file-system routing in Vite! Use state-based navigation
+- **expo-router** — NO file-system routing! Use state-based navigation
 - **expo-status-bar** — not available in web environment
 - **expo-blur** — not available in react-native-web
 - **expo-linear-gradient** — use CSS-style gradient via web styles if needed
 - **expo-image** — use \`<Image>\` from react-native directly
-- **expo-av** — no audio/video support in Sandpack
-- **expo-camera** — no camera in browser sandbox
+- **expo-av** — no audio/video support in web preview
+- **expo-camera** — no camera in browser preview
 - **expo-haptics** — no haptics on web
-- **expo-image-picker** — no file picker in sandbox
+- **expo-image-picker** — no file picker in web preview
 - **expo-constants**, **expo-font**, **expo-file-system** — not available
 - **react-native-safe-area-context** — use manual padding instead
 - **react-native-gesture-handler** — use Pressable from react-native

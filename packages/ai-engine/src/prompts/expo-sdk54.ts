@@ -1,16 +1,17 @@
 /**
- * React Native Web + Vite Core Rules and Library Preferences
- * Compatible with Sandpack (in-browser Vite bundler)
+ * React Native Web Core Rules and Library Preferences
+ * For esbuild + react-native-web preview environment
  */
 
-export const EXPO_SDK54_RULES = `## React Native Web + Vite Core Rules
+export const EXPO_SDK54_RULES = `## React Native Web Core Rules
 
 ### Runtime Environment
-This app runs in a **Vite + React Native Web** environment inside the browser (via Sandpack).
+This app runs in a **react-native-web** environment inside the browser.
 - React Native components are rendered as web elements via \`react-native-web\`
 - There is NO Expo Go, NO Metro bundler, NO native device
-- Everything runs in an iframe in the browser
+- Everything runs in an iframe in the browser with a phone-sized viewport
 - The entry point is always \`App.tsx\` (NOT expo-router file-based routing)
+- A built-in status bar (54px) and home indicator (34px) are rendered by the preview chrome
 
 ### Library Preferences
 | Use This | NOT This |
@@ -19,14 +20,15 @@ This app runs in a **Vite + React Native Web** environment inside the browser (v
 | State-based navigation (custom TabNavigator/Navigator) | expo-router (NOT available) |
 | Custom ScreenHeader component | Stack.Screen options |
 | \`react-native\` components via react-native-web | Web HTML elements (<div>, <span>) |
+| \`Animated\` from react-native | react-native-reanimated (NOT available) |
 | \`React.useContext\` | \`React.use\` (not stable) |
 | \`useWindowDimensions\` | \`Dimensions.get()\` |
 | \`StyleSheet.create\` | nativewind / tailwind |
 
-### Available Packages (work in Vite + react-native-web)
+### Available Packages
 - react, react-native (aliased to react-native-web)
-- lucide-react-native
-- react-native-reanimated (basic animations work on web)
+- lucide-react-native (icons)
+- three, @react-three/fiber, @react-three/drei (3D graphics)
 - AsyncStorage-like patterns using localStorage
 
 ### Project Structure Rules
@@ -41,7 +43,7 @@ types/                  # TypeScript types
 \`\`\`
 
 ### CRITICAL: NO expo-router
-- Do NOT import from \`expo-router\` — it does NOT work in Vite
+- Do NOT import from \`expo-router\` — it does NOT work in this environment
 - Do NOT create an \`app/\` directory for file-based routing
 - Use state-based navigation (see Navigation section)
 - Always export a default component from \`App.tsx\`
@@ -57,10 +59,11 @@ types/                  # TypeScript types
 - TypeScript strict mode enabled
 - Use \`export default\` for screen and page components
 
-### IMPORTANT: Vite/Sandpack Compatibility
-This app runs in Sandpack (Vite in browser). Keep code simple:
+### IMPORTANT: Web Preview Compatibility
+This app runs in a browser-based react-native-web preview. Keep code simple:
 - Do NOT use packages that require native builds
 - Do NOT use file system APIs, camera, haptics, or device-specific APIs
+- Do NOT use react-native-reanimated — use Animated from react-native
 - Use StyleSheet.create for styles
 - For storage, use a simple in-memory store or wrap localStorage
 - For images, use \`<Image source={{ uri: 'https://...' }} />\` from react-native`;

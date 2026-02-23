@@ -1,11 +1,11 @@
 /**
- * Component Patterns for React Native Web + Vite (Sandpack)
+ * Component Patterns for React Native Web preview
  * lucide-react-native, Image, Native Controls
  */
 
 export const SF_SYMBOLS = `## Icons (lucide-react-native)
 
-Use \`lucide-react-native\` for app icons. This is the icon library available in the Vite environment.
+Use \`lucide-react-native\` for app icons. This is the icon library available in the preview environment.
 
 ### Basic Usage
 \`\`\`tsx
@@ -140,9 +140,9 @@ function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
 }
 \`\`\``;
 
-export const MEDIA_COMPONENTS = `## Media (Limited in Sandpack)
+export const MEDIA_COMPONENTS = `## Media (Limited in Web Preview)
 
-Audio, video, and camera are NOT available in the Sandpack/Vite environment.
+Audio, video, and camera are NOT available in the web preview environment.
 For apps that need media features, create placeholder UI that shows a mockup.
 
 ### Audio Player Placeholder
@@ -288,7 +288,7 @@ function SettingsRow({ icon: Icon, title, value, onToggle }: {
 
 export const HAPTICS = `## Haptics
 
-Haptics are NOT available in the Sandpack/Vite web environment.
+Haptics are NOT available in the web preview environment.
 Do NOT import or use expo-haptics. Instead, focus on visual feedback:
 
 ### Visual Feedback Alternatives

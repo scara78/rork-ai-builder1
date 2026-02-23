@@ -1,12 +1,12 @@
 /**
- * Navigation Patterns for Sandpack/Vite + React Native Web
- * Uses state-based routing (NO expo-router — Vite can't do file-system routing)
+ * Navigation Patterns for React Native Web preview
+ * Uses state-based routing (NO expo-router — no file-system routing in browser)
  */
 
 export const NATIVE_TABS = `## Tab Navigation (State-Based)
 
-Since this app runs in a Vite + React Native Web environment (NOT Expo Go), we use
-state-based navigation instead of expo-router. Build a simple tab navigator from scratch.
+Since this app runs in a react-native-web environment (NOT Expo Go), we use
+state-based navigation instead of expo-router. Build a tab navigator from scratch.
 
 ### Tab Navigator Component
 \`\`\`tsx
@@ -46,10 +46,13 @@ export default function TabNavigator({ tabs, initialTab }: TabNavigatorProps) {
               style={styles.tabItem}
               onPress={() => setActiveTab(tab.key)}
             >
-              <Icon
-                size={24}
-                color={isActive ? '#007AFF' : '#8e8e93'}
-              />
+              <View style={styles.tabIconWrap}>
+                <Icon
+                  size={22}
+                  color={isActive ? '#007AFF' : '#8e8e93'}
+                />
+                {isActive && <View style={styles.activeIndicator} />}
+              </View>
               <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
                 {tab.title}
               </Text>
@@ -66,21 +69,35 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#1c1c1e',
+    backgroundColor: 'rgba(28, 28, 30, 0.92)',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#38383a',
-    paddingBottom: 20, // safe area
-    paddingTop: 8,
+    height: 49,
+    alignItems: 'center',
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    paddingVertical: 4,
+  },
+  tabIconWrap: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    bottom: -4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#007AFF',
   },
   tabLabel: {
     fontSize: 10,
     color: '#8e8e93',
+    marginTop: 2,
   },
   tabLabelActive: {
     color: '#007AFF',
@@ -119,10 +136,11 @@ export default function App() {
 
 export const LINK_PATTERNS = `## Screen Navigation (State-Based)
 
-### Simple Navigation with State
+### Simple Navigation with State + Animated Transitions
 \`\`\`tsx
 // components/Navigator.tsx
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
+import { Animated, View, StyleSheet } from 'react-native';
 
 interface NavigatorContextType {
   currentScreen: string;
@@ -174,21 +192,47 @@ export function NavigatorProvider({ initialScreen, children }: NavigatorProvider
 }
 \`\`\`
 
-### Rendering Screens
+### Rendering Screens with Fade Transition
 \`\`\`tsx
 // App.tsx
+import React, { useRef, useEffect, useState } from 'react';
+import { Animated, View, StyleSheet } from 'react-native';
 import { NavigatorProvider, useNavigator } from './components/Navigator';
 import HomeScreen from './screens/HomeScreen';
 import DetailsScreen from './screens/DetailsScreen';
 
 function ScreenRouter() {
   const { currentScreen } = useNavigator();
-  
-  switch (currentScreen) {
-    case 'home': return <HomeScreen />;
-    case 'details': return <DetailsScreen />;
-    default: return <HomeScreen />;
-  }
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [displayedScreen, setDisplayedScreen] = useState(currentScreen);
+
+  useEffect(() => {
+    if (currentScreen !== displayedScreen) {
+      // Fade out, swap screen, fade in
+      Animated.timing(fadeAnim, {
+        toValue: 0, duration: 120, useNativeDriver: true,
+      }).start(() => {
+        setDisplayedScreen(currentScreen);
+        Animated.timing(fadeAnim, {
+          toValue: 1, duration: 200, useNativeDriver: true,
+        }).start();
+      });
+    }
+  }, [currentScreen]);
+
+  const renderScreen = () => {
+    switch (displayedScreen) {
+      case 'home': return <HomeScreen />;
+      case 'details': return <DetailsScreen />;
+      default: return <HomeScreen />;
+    }
+  };
+
+  return (
+    <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      {renderScreen()}
+    </Animated.View>
+  );
 }
 
 export default function App() {

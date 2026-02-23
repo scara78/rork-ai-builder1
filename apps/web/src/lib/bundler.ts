@@ -323,14 +323,83 @@ if (rootElement) {
     <title>Preview</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body, #root { width: 100%; height: 100%; overflow: hidden; background-color: #0a0a0a; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0a0a0a; }
+      body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+        font-family: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
       ::-webkit-scrollbar { display: none; }
-      body { -ms-overflow-style: none; scrollbar-width: none; font-family: -apple-system, system-ui, sans-serif; }
+
+      /* ── Global polish ─────────────────────────────── */
+      * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+      input, textarea { -webkit-user-select: text; user-select: text; }
+      [role="button"] { transition: opacity 0.1s ease, transform 0.1s ease; cursor: pointer; }
+      [role="button"]:active { opacity: 0.7; }
+
+      /* ── Phone chrome: status bar ──────────────────── */
+      #rork-status-bar {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+        height: 54px;
+        background: linear-gradient(180deg, #000 0%, rgba(0,0,0,0.92) 100%);
+        display: flex; align-items: flex-end; justify-content: space-between;
+        padding: 0 20px 8px 20px;
+        font-family: -apple-system, system-ui, sans-serif;
+        font-size: 15px; font-weight: 600; color: #fff;
+        pointer-events: none;
+      }
+      #rork-status-bar .sb-time { flex: 1; text-align: left; }
+      #rork-status-bar .sb-notch { flex: 1; display: flex; justify-content: center; }
+      #rork-status-bar .sb-notch-pill {
+        width: 126px; height: 34px; border-radius: 20px;
+        background: #000;
+      }
+      #rork-status-bar .sb-icons { flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 5px; }
+      #rork-status-bar .sb-icons svg { width: 16px; height: 16px; }
+
+      /* ── Phone chrome: home indicator ──────────────── */
+      #rork-home-indicator {
+        position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+        height: 34px;
+        background: linear-gradient(0deg, #000 0%, rgba(0,0,0,0.85) 100%);
+        display: flex; align-items: center; justify-content: center;
+        pointer-events: none;
+      }
+      #rork-home-indicator .hi-pill {
+        width: 134px; height: 5px; border-radius: 3px;
+        background: rgba(255,255,255,0.3);
+      }
+
+      /* ── App root with safe-area padding ───────────── */
+      #root {
+        width: 100%; height: 100%;
+        padding-top: 54px;
+        padding-bottom: 34px;
+        overflow: hidden;
+      }
     </style>
     ${importMapScript}
   </head>
   <body>
+    <!-- iOS-style status bar -->
+    <div id="rork-status-bar">
+      <span class="sb-time">9:41</span>
+      <span class="sb-notch"><span class="sb-notch-pill"></span></span>
+      <span class="sb-icons">
+        <svg viewBox="0 0 16 16" fill="white"><path d="M1 7c0-.6.4-1 1-1h1c.6 0 1 .4 1 1v5c0 .6-.4 1-1 1H2c-.6 0-1-.4-1-1V7zm4-2c0-.6.4-1 1-1h1c.6 0 1 .4 1 1v7c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V5zm4-2c0-.6.4-1 1-1h1c.6 0 1 .4 1 1v9c0 .6-.4 1-1 1h-1c-.6 0-1-.4-1-1V3z"/></svg>
+        <svg viewBox="0 0 16 16" fill="white"><path d="M8 3C5.5 3 3.3 4 1.7 5.7l1.4 1.4C4.5 5.8 6.1 5 8 5s3.5.8 4.9 2.1l1.4-1.4C12.7 4 10.5 3 8 3zm0 4c-1.4 0-2.7.6-3.5 1.4l1.4 1.4c.5-.5 1.3-.8 2.1-.8s1.6.3 2.1.8l1.4-1.4C10.7 7.6 9.4 7 8 7zm0 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1z"/></svg>
+        <svg viewBox="0 0 24 16" fill="white"><rect x="0" y="2" width="20" height="12" rx="2" ry="2" fill="none" stroke="white" stroke-width="1.5"/><rect x="2" y="4" width="14" height="8" rx="1" fill="white"/><rect x="21" y="5.5" width="2.5" height="5" rx="1" fill="white" opacity="0.4"/></svg>
+      </span>
+    </div>
+
+    <!-- App content -->
     <div id="root"></div>
+
+    <!-- Home indicator -->
+    <div id="rork-home-indicator"><span class="hi-pill"></span></div>
+
     ${errorReporterScript}
     <script type="module">${jsCode}</script>
   </body>
