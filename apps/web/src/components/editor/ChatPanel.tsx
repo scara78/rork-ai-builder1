@@ -141,10 +141,12 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
                 if (data.type === 'file_created' || data.type === 'file_updated') {
                   if (data.file) {
                     generatedFiles.push(data.file);
-                    // Apply file immediately so Snack preview updates in real-time
+                    // Apply file immediately so preview updates in real-time
                     addGeneratingFile(data.file);
                     progressLines.push(`${data.type === 'file_created' ? 'Created' : 'Updated'} ${data.file.path}`);
                     appendStreamingContent(`- ${progressLines[progressLines.length - 1]}\n`);
+                    // Signal LivePreview to refresh (debounced on receiving end)
+                    window.dispatchEvent(new CustomEvent('project-files-changed'));
                   }
                 } else if (data.type === 'text_delta' && data.message) {
                   appendStreamingContent(data.message);
@@ -158,6 +160,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
                   if (data.files && data.files.length > 0) {
                     generatedFiles.push(...data.files);
                   }
+                  // Final refresh signal after all files are written
+                  window.dispatchEvent(new CustomEvent('project-files-changed'));
                 } else if (data.type === 'error') {
                   summaryContent = `Error: ${data.error}`;
                 }
@@ -179,6 +183,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
       // Apply generated files
       if (generatedFiles.length > 0) {
         applyGeneratedFiles(generatedFiles);
+        // Final dispatch after all files are persisted
+        window.dispatchEvent(new CustomEvent('project-files-changed'));
       }
       
     } catch (error) {

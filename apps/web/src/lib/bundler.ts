@@ -99,29 +99,39 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
 })();
 </script>`;
 
-    // For the web preview, we need to handle deep imports from react-native
-    // (e.g. react-native/Libraries/Utilities/codegenNativeComponent) which are
-    // native-only modules. We use a catch-all API stub route to serve empty modules.
-    // Also, lucide-react-native depends on react-native-svg which has native-only code,
-    // so we swap it with lucide-react (same API, uses web SVG instead).
+    // ── Import Map ──────────────────────────────────────────────────────
+    // Pin ONE React singleton. Every esm.sh URL uses ?external=react,react-dom
+    // so the browser import-map resolves them to the SAME module instance.
+    // Without this, React sees two copies and throws Error #31 / hooks errors.
+    //
+    // react-native → react-native-web (standard web shim)
+    // react-native/* deep paths → catch-all stub API (native-only, no web equiv)
+    // lucide-react-native → lucide-react (web SVG, avoids react-native-svg chain)
+    // react-native-svg → stub (native-only, would pull codegenNativeComponent)
+
+    const REACT_V = '18.3.1';
+    const RNW_V = '0.19.13';
+    const ESM = 'https://esm.sh';
+    // All esm.sh URLs externalize react+react-dom so the browser resolves them
+    // through the importmap → single instance guaranteed.
+    const EXT_REACT = 'external=react,react-dom';
 
     const importMapScript = `<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.3.1?dev",
-    "react/": "https://esm.sh/react@18.3.1/",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?external=react&dev",
-    "react-dom": "https://esm.sh/react-dom@18.3.1?external=react&dev",
-    "react-native": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
+    "react": "${ESM}/react@${REACT_V}",
+    "react/": "${ESM}/react@${REACT_V}/",
+    "react-dom": "${ESM}/react-dom@${REACT_V}?${EXT_REACT}",
+    "react-dom/": "${ESM}/react-dom@${REACT_V}&${EXT_REACT}/",
+    "react-native": "${ESM}/react-native-web@${RNW_V}?${EXT_REACT}",
     "react-native/": "/api/stub/",
-    "react-native/Libraries/Utilities/codegenNativeComponent": "/api/stub/react-native/Libraries/Utilities/codegenNativeComponent",
-    "react-native-web": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
-    "lucide-react-native": "https://esm.sh/lucide-react@0.475.0?external=react",
+    "react-native-web": "${ESM}/react-native-web@${RNW_V}?${EXT_REACT}",
     "react-native-svg": "/api/stub/react-native-svg",
     "react-native-svg/": "/api/stub/react-native-svg/",
-    "three": "https://esm.sh/three@0.160.0",
-    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
-    "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
+    "lucide-react-native": "${ESM}/lucide-react@0.475.0?external=react",
+    "three": "${ESM}/three@0.160.0",
+    "@react-three/fiber": "${ESM}/@react-three/fiber@8.15.14?external=react,react-dom,three",
+    "@react-three/drei": "${ESM}/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
   }
 }
 </script>`;
@@ -188,49 +198,69 @@ if (rootElement) {
     const virtualFsPlugin: esbuild.Plugin = {
       name: 'virtual-fs',
       setup(build) {
-        // Resolve requests
+        // ── Resolve requests ────────────────────────────────────────────
         build.onResolve({ filter: /.*/ }, (args) => {
-          let req = args.path;
+          const req = args.path;
 
-          // External packages via esm.sh
+          // Already a URL → pass through
           if (req.startsWith('http')) return { path: req, external: true };
 
-          // Core packages that are in the import map -> keep them bare
-          if (['react', 'react-dom', 'react-dom/client', 'react-native', 'react-native-web', 'lucide-react-native', 'three', '@react-three/fiber', '@react-three/drei'].includes(req)) {
+          // ── React singleton: keep bare so the browser importmap resolves ONE copy
+          // Matches: react, react/jsx-runtime, react-dom, react-dom/client, etc.
+          if (req === 'react' || req.startsWith('react/'))
             return { path: req, external: true };
-          }
+          if (req === 'react-dom' || req.startsWith('react-dom/'))
+            return { path: req, external: true };
 
-          // Deep imports from react-native (e.g. react-native/Libraries/Utilities/codegenNativeComponent)
-          // These are native-only modules that don't exist in react-native-web — stub them out
-          if (req.startsWith('react-native/')) {
+          // ── react-native bare → external (importmap → react-native-web)
+          if (req === 'react-native')
+            return { path: req, external: true };
+
+          // ── react-native deep paths → stub (native-only, no web equivalent)
+          if (req.startsWith('react-native/'))
+            return { path: req, namespace: 'empty-module' };
+
+          // ── Packages mapped in importmap → keep bare external
+          const IMPORTMAP_EXTERNALS = [
+            'react-native-web', 'lucide-react-native',
+            'three', '@react-three/fiber', '@react-three/drei',
+          ];
+          if (IMPORTMAP_EXTERNALS.includes(req))
+            return { path: req, external: true };
+
+          // ── Ignored / native-only packages → empty stub (exact + subpath)
+          if (
+            IGNORED_PACKAGES.has(req) ||
+            req.startsWith('@expo/vector-icons') ||
+            [...IGNORED_PACKAGES].some(pkg => req.startsWith(pkg + '/'))
+          ) {
             return { path: req, namespace: 'empty-module' };
           }
 
-          // Ignored packages -> return empty module (also handle subpath imports like expo-camera/web)
-          if (IGNORED_PACKAGES.has(req) || req.startsWith('@expo/vector-icons') || [...IGNORED_PACKAGES].some(pkg => req.startsWith(pkg + '/'))) {
+          // ── CSS imports → stub (no CSS bundling in preview)
+          if (req.endsWith('.css'))
             return { path: req, namespace: 'empty-module' };
-          }
 
-          // Resolve relative or aliased local paths
-          if (args.path.startsWith('.')) {
+          // ── Relative imports
+          if (req.startsWith('.')) {
             const importer = args.importer.replace(/\\/g, '/');
             const importerDir = importer.substring(0, importer.lastIndexOf('/'));
-            const resolvedBase = normalizePath((importerDir ? importerDir + '/' : '') + args.path);
+            const resolvedBase = normalizePath((importerDir ? importerDir + '/' : '') + req);
             const hit = tryResolveProjectPath(resolvedBase);
             if (hit) return { path: hit, namespace: 'virtual-fs' };
           } else {
-            // Not a relative path, could be an alias
+            // Alias or project-local bare path
             const reqMapped = mapAlias(req);
             const projHit = tryResolveProjectPath(reqMapped);
             if (projHit) return { path: projHit, namespace: 'virtual-fs' };
             
-            // If it's a bare specifier not in our system, assume npm package and rewrite to esm.sh
+            // Unknown bare specifier → npm via esm.sh, externalize react singleton
             if (!req.startsWith('/') && !req.startsWith('.')) {
-              return { path: `https://esm.sh/${req}?external=react,react-native,react-native-web`, external: true };
+              return { path: `https://esm.sh/${req}?external=react,react-dom,react-native,react-native-web`, external: true };
             }
           }
           
-          return null; // Let esbuild handle or fail
+          return null;
         });
 
         // Load virtual files

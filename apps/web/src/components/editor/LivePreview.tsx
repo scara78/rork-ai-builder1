@@ -108,6 +108,8 @@ export function LivePreview({ code, projectId, className, onLoad, onError }: Liv
         }
     }, [projectId, onError]); // keep bundleUrl out to avoid reload loops
 
+    // Debounced refresh: batch rapid file-change events into one reload.
+    // Uses a 2s debounce so we don't thrash the bundler during streaming.
     useEffect(() => {
         loadBundle();
 
@@ -117,12 +119,20 @@ export function LivePreview({ code, projectId, className, onLoad, onError }: Liv
             if (timeoutId) clearTimeout(timeoutId);
             timeoutId = setTimeout(() => {
                 loadBundle();
-            }, 1000);
+            }, 2000);
+        };
+
+        // Also listen for explicit refresh requests (e.g. command palette)
+        const handleImmediateRefresh = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            loadBundle();
         };
 
         window.addEventListener("project-files-changed", handleRefresh);
+        window.addEventListener("refresh-preview", handleImmediateRefresh);
         return () => {
             window.removeEventListener("project-files-changed", handleRefresh);
+            window.removeEventListener("refresh-preview", handleImmediateRefresh);
             if (timeoutId) clearTimeout(timeoutId);
         };
     }, [loadBundle]);
