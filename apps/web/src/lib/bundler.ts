@@ -99,15 +99,26 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
 })();
 </script>`;
 
+    // For the web preview, we need to handle deep imports from react-native
+    // (e.g. react-native/Libraries/Utilities/codegenNativeComponent) which are
+    // native-only modules. We use a catch-all API stub route to serve empty modules.
+    // Also, lucide-react-native depends on react-native-svg which has native-only code,
+    // so we swap it with lucide-react (same API, uses web SVG instead).
+
     const importMapScript = `<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.3.1",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react": "https://esm.sh/react@18.3.1?dev",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?external=react&dev",
+    "react-dom": "https://esm.sh/react-dom@18.3.1?external=react&dev",
     "react-native": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
+    "react-native/": "/api/stub/",
+    "react-native/Libraries/Utilities/codegenNativeComponent": "/api/stub/react-native/Libraries/Utilities/codegenNativeComponent",
     "react-native-web": "https://esm.sh/react-native-web@0.19.13?external=react,react-dom",
-    "lucide-react-native": "https://esm.sh/lucide-react-native@0.475.0?external=react,react-native",
+    "lucide-react-native": "https://esm.sh/lucide-react@0.475.0?external=react",
+    "react-native-svg": "/api/stub/react-native-svg",
+    "react-native-svg/": "/api/stub/react-native-svg/",
     "three": "https://esm.sh/three@0.160.0",
     "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
     "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
@@ -189,8 +200,14 @@ if (rootElement) {
             return { path: req, external: true };
           }
 
-          // Ignored packages -> return empty module
-          if (IGNORED_PACKAGES.has(req) || req.startsWith('@expo/vector-icons')) {
+          // Deep imports from react-native (e.g. react-native/Libraries/Utilities/codegenNativeComponent)
+          // These are native-only modules that don't exist in react-native-web — stub them out
+          if (req.startsWith('react-native/')) {
+            return { path: req, namespace: 'empty-module' };
+          }
+
+          // Ignored packages -> return empty module (also handle subpath imports like expo-camera/web)
+          if (IGNORED_PACKAGES.has(req) || req.startsWith('@expo/vector-icons') || [...IGNORED_PACKAGES].some(pkg => req.startsWith(pkg + '/'))) {
             return { path: req, namespace: 'empty-module' };
           }
 
