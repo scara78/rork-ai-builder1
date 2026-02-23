@@ -1,31 +1,40 @@
 'use client';
 
 import { useState } from 'react';
-import { RefreshCw, Smartphone, Tablet, ExternalLink } from 'lucide-react';
+import { RefreshCw, Smartphone, Tablet, ExternalLink, QrCode } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
-import { LivePreview } from './LivePreview';
+import { SnackPreview } from './SnackPreview';
 import { ConsolePanel } from './ConsolePanel';
 
 interface PreviewPanelProps {
   projectId: string;
-  onExpoURLChange?: (url: string | undefined) => void;
-  onDevicesChange?: (count: number) => void;
+  webPreviewRef: React.MutableRefObject<Window | null>;
+  webPreviewURL: string | undefined;
+  expoURL: string | undefined;
+  isOnline: boolean;
+  isBusy: boolean;
+  connectedClients: number;
+  snackError: string | null;
 }
 
-export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
-  const { files, generatingFiles } = useProjectStore();
+export function PreviewPanel({
+  projectId,
+  webPreviewRef,
+  webPreviewURL,
+  expoURL,
+  isOnline,
+  isBusy,
+  connectedClients,
+  snackError,
+}: PreviewPanelProps) {
+  const { generatingFiles } = useProjectStore();
   const { isRunning: isAgentRunning } = useAgentStore();
 
   const isGenerating = isAgentRunning;
-  const hasRealFiles = Object.keys(files).length > 0;
 
   const [deviceSize, setDeviceSize] = useState<'phone' | 'tablet'>('phone');
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  const handleRefresh = () => {
-    setRefreshKey((k) => k + 1);
-  };
+  const [showQR, setShowQR] = useState(false);
 
   return (
     <div className="h-full w-full flex flex-col bg-[#1a1a1d] relative pb-10">
@@ -41,28 +50,41 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               </span>
               <span className="text-blue-400 font-medium text-xs">Building</span>
             </div>
-          ) : !hasRealFiles ? (
+          ) : isBusy ? (
             <div className="flex items-center gap-1.5">
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
-              <span className="text-gray-500 font-medium text-xs">Waiting</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500" />
+              </span>
+              <span className="text-yellow-400 font-medium text-xs">Resolving</span>
             </div>
-          ) : (
+          ) : isOnline ? (
             <div className="flex items-center gap-1.5">
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
               <span className="text-green-400 font-medium text-xs">Live</span>
+              {connectedClients > 0 && (
+                <span className="text-[10px] text-gray-500">({connectedClients} device{connectedClients > 1 ? 's' : ''})</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
+              <span className="text-gray-500 font-medium text-xs">Connecting</span>
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Refresh */}
-          <button
-            onClick={handleRefresh}
-            className="p-1.5 text-gray-500 hover:text-white transition-colors rounded-md hover:bg-white/5"
-            title="Refresh preview"
-          >
-            <RefreshCw size={13} />
-          </button>
+          {/* QR Code button — open in Expo Go */}
+          {expoURL && (
+            <button
+              onClick={() => setShowQR(!showQR)}
+              className={`p-1.5 rounded-md transition-colors ${showQR ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="Open in Expo Go"
+            >
+              <QrCode size={13} />
+            </button>
+          )}
           <div className="w-px h-4 bg-[#27272a] mx-1" />
           {/* Device type icons */}
           <button
@@ -79,13 +101,15 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
           >
             <Tablet size={13} />
           </button>
-          <button
-            onClick={() => window.open(`/api/projects/${projectId}/bundle`, '_blank')}
-            className="p-1.5 text-gray-500 hover:text-white transition-colors rounded-md hover:bg-white/5 ml-1"
-            title="Open in new tab"
-          >
-            <ExternalLink size={13} />
-          </button>
+          {webPreviewURL && (
+            <button
+              onClick={() => window.open(webPreviewURL, '_blank')}
+              className="p-1.5 text-gray-500 hover:text-white transition-colors rounded-md hover:bg-white/5 ml-1"
+              title="Open preview in new tab"
+            >
+              <ExternalLink size={13} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -111,10 +135,14 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               deviceSize === 'tablet' ? 'rounded-[20px]' : 'rounded-[36px]'
             }`}
           >
-            <LivePreview 
-              key={refreshKey}
-              projectId={projectId}
-              className="w-full h-full bg-[#0a0a0a]"
+            <SnackPreview
+              webPreviewRef={webPreviewRef}
+              webPreviewURL={webPreviewURL}
+              isOnline={isOnline}
+              isBusy={isBusy}
+              connectedClients={connectedClients}
+              error={snackError}
+              className="w-full h-full"
             />
 
             {/* Building overlay */}

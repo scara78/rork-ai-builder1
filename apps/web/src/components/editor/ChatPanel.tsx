@@ -145,7 +145,7 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
                     addGeneratingFile(data.file);
                     progressLines.push(`${data.type === 'file_created' ? 'Created' : 'Updated'} ${data.file.path}`);
                     appendStreamingContent(`- ${progressLines[progressLines.length - 1]}\n`);
-                    // Signal LivePreview to refresh (debounced on receiving end)
+                    // Signal editor to push updated files to Snack preview
                     window.dispatchEvent(new CustomEvent('project-files-changed'));
                   }
                 } else if (data.type === 'text_delta' && data.message) {

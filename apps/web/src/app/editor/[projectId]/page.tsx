@@ -10,6 +10,7 @@ import { ChatPanel } from '@/components/editor/ChatPanel';
 import { QRPanel } from '@/components/editor/QRPanel';
 import { Toolbar } from '@/components/editor/Toolbar';
 import { CommandPalette } from '@/components/editor/CommandPalette';
+import { useSnack } from '@/hooks/useSnack';
 
 const PreviewPanel = dynamic(
   () => import('@/components/editor/PreviewPanel').then(mod => mod.PreviewPanel),
@@ -37,8 +38,31 @@ export default function EditorPage() {
   const { setProject, files, setActiveFile, setAgentMode } = useProjectStore();
   const { showToast } = useToast();
 
+  // Snack SDK — manages Expo preview session
+  const {
+    webPreviewRef,
+    webPreviewURL,
+    expoURL: snackExpoURL,
+    connectedClients: snackConnectedClients,
+    isOnline: snackIsOnline,
+    isBusy: snackIsBusy,
+    error: snackError,
+    setAllFiles: snackSetAllFiles,
+    updateFiles: snackUpdateFiles,
+  } = useSnack();
+
   // Auto-save dirty files every 2 seconds after changes
   useAutoSave({ projectId, delay: 2000, enabled: !loading });
+
+  // Sync Snack SDK expoURL → local state for QRPanel
+  useEffect(() => {
+    setExpoURL(snackExpoURL);
+  }, [snackExpoURL]);
+
+  // Sync Snack connected clients → local state for QRPanel
+  useEffect(() => {
+    setConnectedDevices(snackConnectedClients);
+  }, [snackConnectedClients]);
 
   // Pick up pending prompt from landing page
   useEffect(() => {
@@ -188,6 +212,31 @@ export default function EditorPage() {
     loadProject();
   }, [projectId, router, setProject]);
 
+  // Push all project files to Snack when project finishes loading
+  useEffect(() => {
+    if (!loading && Object.keys(files).length > 0) {
+      snackSetAllFiles(files as Record<string, { path: string; content: string }>);
+    }
+    // Only run when loading transitions to false (project load complete)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Listen for project-files-changed events → push updated files to Snack
+  useEffect(() => {
+    const handler = () => {
+      const currentFiles = useProjectStore.getState().files;
+      const fileArray = Object.values(currentFiles).map(f => ({
+        path: f.path,
+        content: f.content,
+      }));
+      if (fileArray.length > 0) {
+        snackUpdateFiles(fileArray);
+      }
+    };
+    window.addEventListener('project-files-changed', handler);
+    return () => window.removeEventListener('project-files-changed', handler);
+  }, [snackUpdateFiles]);
+
   // Handle "View Code" from chat panel - switch to code view and open file
   const handleViewCode = useCallback((filePath?: string) => {
     setViewMode('code');
@@ -196,15 +245,7 @@ export default function EditorPage() {
     }
   }, [setActiveFile]);
 
-  // Callback to receive Expo URL from PreviewPanel
-  const handleExpoURLChange = useCallback((url: string | undefined) => {
-    setExpoURL(url);
-  }, []);
-
-  // Callback to receive connected devices count
-  const handleDevicesChange = useCallback((count: number) => {
-    setConnectedDevices(count);
-  }, []);
+  // (expoURL and connectedDevices are now driven by Snack SDK via useEffect syncs above)
   
   if (loading) {
     const hasPending = typeof window !== 'undefined' && sessionStorage.getItem('rork_pending_prompt');
@@ -260,8 +301,13 @@ export default function EditorPage() {
           {viewMode === 'preview' ? (
             <PreviewPanel 
               projectId={projectId}
-              onExpoURLChange={handleExpoURLChange}
-              onDevicesChange={handleDevicesChange}
+              webPreviewRef={webPreviewRef}
+              webPreviewURL={webPreviewURL}
+              expoURL={snackExpoURL}
+              isOnline={snackIsOnline}
+              isBusy={snackIsBusy}
+              connectedClients={snackConnectedClients}
+              snackError={snackError}
             />
           ) : (
             <div className="flex h-full">

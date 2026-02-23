@@ -1,0 +1,179 @@
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertCircle, RefreshCw, Wand2, Loader2, Wifi, WifiOff } from 'lucide-react';
+
+interface SnackPreviewProps {
+  webPreviewRef: React.MutableRefObject<Window | null>;
+  webPreviewURL: string | undefined;
+  isOnline: boolean;
+  isBusy: boolean;
+  connectedClients: number;
+  error: string | null;
+  className?: string;
+}
+
+export function SnackPreview({
+  webPreviewRef,
+  webPreviewURL,
+  isOnline,
+  isBusy,
+  connectedClients,
+  error: snackError,
+  className,
+}: SnackPreviewProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+
+  // Wire up the webPreviewRef to iframe's contentWindow
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (iframe) {
+      // Set the ref to the contentWindow — Snack SDK uses this for postMessage communication
+      webPreviewRef.current = iframe.contentWindow;
+    }
+    return () => {
+      webPreviewRef.current = null;
+    };
+  }, [webPreviewRef]);
+
+  // Listen for runtime errors from the Snack web player
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+
+      // Snack web player error format
+      if (data.type === 'error' || data.type === 'unhandled_error') {
+        const msg = data.message || data.error || 'Runtime error';
+        setRuntimeError(msg);
+      }
+      // Clear errors on successful load
+      if (data.type === 'loading_complete' || data.type === 'done') {
+        setRuntimeError(null);
+        setIsLoading(false);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleFixWithAI = () => {
+    const errorMsg = runtimeError || snackError;
+    if (!errorMsg) return;
+    const errorPrompt = `I'm getting this runtime error in the Expo preview:\n\n${errorMsg}\n\nPlease analyze the root cause and fix it.`;
+    window.dispatchEvent(new CustomEvent('send-to-ai', { detail: { message: errorPrompt } }));
+  };
+
+  const handleRefresh = () => {
+    const iframe = iframeRef.current;
+    if (iframe && webPreviewURL) {
+      setIsLoading(true);
+      setRuntimeError(null);
+      iframe.src = webPreviewURL;
+    }
+  };
+
+  const displayError = runtimeError || snackError;
+
+  // Waiting for Snack to come online
+  if (!webPreviewURL && !displayError) {
+    return (
+      <div className={`flex items-center justify-center bg-[#0a0a0a] ${className}`}>
+        <div className="text-center text-gray-500 p-8">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin mb-4 opacity-40" />
+          <p className="text-sm font-medium text-gray-400 mb-1">
+            {isBusy ? 'Resolving dependencies...' : 'Connecting to Expo...'}
+          </p>
+          <p className="text-xs text-gray-600">
+            {isOnline ? 'Online — waiting for web player' : 'Going online...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (displayError && !webPreviewURL) {
+    return (
+      <div className={`flex flex-col items-center justify-center bg-red-950/20 m-3 border border-red-500/30 rounded-xl ${className}`}>
+        <div className="text-center p-6 max-w-2xl w-full">
+          <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-4" />
+          <h3 className="text-base font-semibold text-red-400 mb-2">Preview Error</h3>
+          <pre className="text-xs text-red-300/80 mb-4 text-left bg-black/40 p-4 rounded-lg overflow-auto max-h-60 whitespace-pre-wrap font-mono">
+            {displayError}
+          </pre>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleRefresh}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-sm font-medium"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+            <button
+              onClick={handleFixWithAI}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm font-medium shadow-lg shadow-orange-900/20"
+            >
+              <Wand2 className="h-4 w-4" />
+              Fix with AI
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative w-full h-full ${className}`}>
+      {/* Connection status indicator */}
+      <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+        {isOnline ? (
+          <Wifi size={10} className="text-green-500" />
+        ) : (
+          <WifiOff size={10} className="text-red-400" />
+        )}
+      </div>
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]/80 z-10">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin mb-2 text-gray-400" />
+            <p className="text-xs text-gray-500">Loading preview...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Runtime error overlay */}
+      {runtimeError && (
+        <div className="absolute bottom-0 left-0 right-0 z-20 bg-red-950/90 backdrop-blur-sm border-t border-red-500/30 p-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-red-300 font-mono truncate">{runtimeError}</p>
+            </div>
+            <button
+              onClick={handleFixWithAI}
+              className="flex items-center gap-1 px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-[10px] font-medium flex-shrink-0"
+            >
+              <Wand2 size={10} />
+              Fix
+            </button>
+          </div>
+        </div>
+      )}
+
+      <iframe
+        ref={iframeRef}
+        src={webPreviewURL}
+        title="Expo Snack Preview"
+        allow="geolocation; camera; microphone"
+        className="w-full h-full border-none"
+        style={{ backgroundColor: '#0a0a0a' }}
+        onLoad={() => setIsLoading(false)}
+      />
+    </div>
+  );
+}

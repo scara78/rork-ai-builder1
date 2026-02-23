@@ -8,6 +8,7 @@ import { CodePanel } from '@/components/editor/CodePanel';
 import { ChatPanel } from '@/components/editor/ChatPanel';
 import { Toolbar } from '@/components/editor/Toolbar';
 import { CommandPalette } from '@/components/editor/CommandPalette';
+import { useSnack } from '@/hooks/useSnack';
 
 const PreviewPanel = dynamic(
   () => import('@/components/editor/PreviewPanel').then(mod => mod.PreviewPanel),
@@ -191,9 +192,24 @@ export default function DemoPage() {
   const { setProject } = useProjectStore();
   const { showToast } = useToast();
 
+  // Snack SDK for demo preview
+  const {
+    webPreviewRef,
+    webPreviewURL,
+    expoURL: snackExpoURL,
+    connectedClients: snackConnectedClients,
+    isOnline: snackIsOnline,
+    isBusy: snackIsBusy,
+    error: snackError,
+    setAllFiles: snackSetAllFiles,
+  } = useSnack();
+
   // Initialize demo project
   useEffect(() => {
     setProject('demo', 'Demo App', DEMO_FILES);
+    // Push demo files to Snack
+    snackSetAllFiles(DEMO_FILES as Record<string, { path: string; content: string }>);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setProject]);
 
   // Keyboard shortcuts
@@ -269,7 +285,16 @@ export default function DemoPage() {
         <div className="w-[500px] flex flex-col flex-shrink-0">
           {/* Preview */}
           <div className="flex-1 border-b border-border min-h-0">
-            <PreviewPanel projectId="demo" />
+            <PreviewPanel
+              projectId="demo"
+              webPreviewRef={webPreviewRef}
+              webPreviewURL={webPreviewURL}
+              expoURL={snackExpoURL}
+              isOnline={snackIsOnline}
+              isBusy={snackIsBusy}
+              connectedClients={snackConnectedClients}
+              snackError={snackError}
+            />
           </div>
           
           {/* Chat */}
