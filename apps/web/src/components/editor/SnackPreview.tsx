@@ -25,18 +25,32 @@ export function SnackPreview({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const prevURLRef = useRef<string | undefined>(undefined);
 
-  // Wire up the webPreviewRef to iframe's contentWindow
+  // Wire up the webPreviewRef to iframe's contentWindow IMMEDIATELY on mount.
+  // The iframe always renders (with about:blank initially) so contentWindow exists.
   useEffect(() => {
     const iframe = iframeRef.current;
     if (iframe) {
-      // Set the ref to the contentWindow — Snack SDK uses this for postMessage communication
       webPreviewRef.current = iframe.contentWindow;
     }
     return () => {
       webPreviewRef.current = null;
     };
   }, [webPreviewRef]);
+
+  // When webPreviewURL changes, update the iframe src
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    if (webPreviewURL && webPreviewURL !== prevURLRef.current) {
+      prevURLRef.current = webPreviewURL;
+      setIsLoading(true);
+      setRuntimeError(null);
+      iframe.src = webPreviewURL;
+    }
+  }, [webPreviewURL]);
 
   // Listen for runtime errors from the Snack web player
   useEffect(() => {
@@ -77,67 +91,65 @@ export function SnackPreview({
 
   const displayError = runtimeError || snackError;
 
-  // Waiting for Snack to come online
-  if (!webPreviewURL && !displayError) {
-    return (
-      <div className={`flex items-center justify-center bg-[#0a0a0a] ${className}`}>
-        <div className="text-center text-gray-500 p-8">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin mb-4 opacity-40" />
-          <p className="text-sm font-medium text-gray-400 mb-1">
-            {isBusy ? 'Resolving dependencies...' : 'Connecting to Expo...'}
-          </p>
-          <p className="text-xs text-gray-600">
-            {isOnline ? 'Online — waiting for web player' : 'Going online...'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (displayError && !webPreviewURL) {
-    return (
-      <div className={`flex flex-col items-center justify-center bg-red-950/20 m-3 border border-red-500/30 rounded-xl ${className}`}>
-        <div className="text-center p-6 max-w-2xl w-full">
-          <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-4" />
-          <h3 className="text-base font-semibold text-red-400 mb-2">Preview Error</h3>
-          <pre className="text-xs text-red-300/80 mb-4 text-left bg-black/40 p-4 rounded-lg overflow-auto max-h-60 whitespace-pre-wrap font-mono">
-            {displayError}
-          </pre>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={handleRefresh}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-sm font-medium"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Retry
-            </button>
-            <button
-              onClick={handleFixWithAI}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm font-medium shadow-lg shadow-orange-900/20"
-            >
-              <Wand2 className="h-4 w-4" />
-              Fix with AI
-            </button>
+  return (
+    <div className={`relative w-full h-full ${className || ''}`}>
+      {/* Status overlay — shown when waiting for Snack to come online */}
+      {!webPreviewURL && !displayError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a] z-10">
+          <div className="text-center text-gray-500 p-8">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin mb-4 opacity-40" />
+            <p className="text-sm font-medium text-gray-400 mb-1">
+              {isBusy ? 'Resolving dependencies...' : 'Connecting to Expo...'}
+            </p>
+            <p className="text-xs text-gray-600">
+              {isOnline ? 'Online — waiting for web player' : 'Going online...'}
+            </p>
           </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className={`relative w-full h-full ${className}`}>
+      {/* Error overlay — shown when Snack has an error and no preview URL */}
+      {displayError && !webPreviewURL && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/20 z-10 m-3 border border-red-500/30 rounded-xl">
+          <div className="text-center p-6 max-w-2xl w-full">
+            <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-4" />
+            <h3 className="text-base font-semibold text-red-400 mb-2">Preview Error</h3>
+            <pre className="text-xs text-red-300/80 mb-4 text-left bg-black/40 p-4 rounded-lg overflow-auto max-h-60 whitespace-pre-wrap font-mono">
+              {displayError}
+            </pre>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleRefresh}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-sm font-medium"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
+              <button
+                onClick={handleFixWithAI}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm font-medium shadow-lg shadow-orange-900/20"
+              >
+                <Wand2 className="h-4 w-4" />
+                Fix with AI
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Connection status indicator */}
-      <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
-        {isOnline ? (
-          <Wifi size={10} className="text-green-500" />
-        ) : (
-          <WifiOff size={10} className="text-red-400" />
-        )}
-      </div>
+      {webPreviewURL && (
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+          {isOnline ? (
+            <Wifi size={10} className="text-green-500" />
+          ) : (
+            <WifiOff size={10} className="text-red-400" />
+          )}
+        </div>
+      )}
 
-      {/* Loading overlay */}
-      {isLoading && (
+      {/* Loading overlay — shown while iframe is loading */}
+      {isLoading && webPreviewURL && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a]/80 z-10">
           <div className="text-center">
             <Loader2 className="mx-auto h-6 w-6 animate-spin mb-2 text-gray-400" />
@@ -146,8 +158,8 @@ export function SnackPreview({
         </div>
       )}
 
-      {/* Runtime error overlay */}
-      {runtimeError && (
+      {/* Runtime error overlay — shown on top of working preview */}
+      {runtimeError && webPreviewURL && (
         <div className="absolute bottom-0 left-0 right-0 z-20 bg-red-950/90 backdrop-blur-sm border-t border-red-500/30 p-3">
           <div className="flex items-start gap-2">
             <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
@@ -165,14 +177,22 @@ export function SnackPreview({
         </div>
       )}
 
+      {/* The iframe ALWAYS renders — starts with about:blank, then gets webPreviewURL set via effect.
+          This is critical: Snack SDK needs webPreviewRef.current (iframe.contentWindow) 
+          to be available BEFORE setOnline(true) is called. */}
       <iframe
         ref={iframeRef}
-        src={webPreviewURL}
+        src="about:blank"
         title="Expo Snack Preview"
         allow="geolocation; camera; microphone"
         className="w-full h-full border-none"
         style={{ backgroundColor: '#0a0a0a' }}
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => {
+          // Only mark loading complete if we have a real URL loaded (not about:blank)
+          if (iframeRef.current?.src && iframeRef.current.src !== 'about:blank') {
+            setIsLoading(false);
+          }
+        }}
       />
     </div>
   );
