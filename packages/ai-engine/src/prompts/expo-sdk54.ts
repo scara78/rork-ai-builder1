@@ -1,125 +1,170 @@
 /**
- * React Native Web Core Rules and Library Preferences
- * For esbuild + react-native-web preview environment
+ * Expo SDK 52 Core Rules and Library Preferences
+ * For Expo Snack SDK preview environment (real Expo code)
  */
 
-export const EXPO_SDK54_RULES = `## React Native Web Core Rules
+export const EXPO_SDK54_RULES = `## Expo SDK 52 Core Rules
 
 ### Runtime Environment
-This app runs in a **react-native-web** environment inside the browser.
-- React Native components are rendered as web elements via \`react-native-web\`
-- There is NO Expo Go, NO Metro bundler, NO native device
-- Everything runs in an iframe in the browser with a phone-sized viewport
-- The entry point is always \`App.tsx\` (NOT expo-router file-based routing)
-- A built-in status bar (54px) and home indicator (34px) are rendered by the preview chrome
+This app runs in **Expo Snack** — a real Expo environment powered by Metro bundler.
+- Code runs natively on iOS/Android via Expo Go, AND as a web preview via react-native-web
+- The Snack web player renders your app in an iframe — users can also scan a QR code to test on real devices
+- The entry point is always \`App.tsx\` (default export)
+- Expo SDK 52 is the target — use packages compatible with this version
 
 ### Library Preferences
 | Use This | NOT This |
 |----------|----------|
-| \`lucide-react-native\` | @expo/vector-icons / expo-symbols / SymbolView |
-| State-based navigation (custom TabNavigator/Navigator) | expo-router (NOT available) |
-| Custom ScreenHeader component | Stack.Screen options |
-| \`react-native\` components via react-native-web | Web HTML elements (<div>, <span>) |
-| \`Animated\` from react-native | react-native-reanimated (NOT available) |
-| \`React.useContext\` | \`React.use\` (not stable) |
+| \`@expo/vector-icons\` (Ionicons, MaterialIcons, etc.) | lucide-react-native (not available in Snack) |
+| \`expo-router\` file-based routing | Custom state-based navigation |
+| \`react-native-safe-area-context\` | Manual padding constants |
+| \`react-native-reanimated\` | Animated from react-native (use reanimated for better perf) |
+| \`expo-image\` | Image from react-native |
+| \`expo-blur\` (BlurView) | Semi-transparent backgrounds |
+| \`expo-haptics\` | Visual-only feedback |
+| \`@react-native-async-storage/async-storage\` | localStorage wrappers |
+| \`StyleSheet.create\` | nativewind / tailwind (not available) |
+| CSS \`boxShadow\` style prop | Legacy RN shadow props |
+| \`React.useContext\` | \`React.use\` (not stable in all envs) |
 | \`useWindowDimensions\` | \`Dimensions.get()\` |
-| \`StyleSheet.create\` | nativewind / tailwind |
 
-### Available Packages
-- react, react-native (aliased to react-native-web)
-- lucide-react-native (icons)
-- three, @react-three/fiber, @react-three/drei (3D graphics)
-- AsyncStorage-like patterns using localStorage
+### Available Packages (Pre-loaded in Snack)
+These packages are pre-loaded and resolve instantly:
+- react, react-native
+- expo-router
+- @expo/vector-icons
+- react-native-safe-area-context
+- react-native-reanimated
+- react-native-gesture-handler
+- @react-native-async-storage/async-storage
+- expo-constants, expo-font
 
-### Project Structure Rules
+### Available Packages (Resolved by Snackager)
+These packages are available but need resolution (slight delay on first use):
+- expo-image
+- expo-blur
+- expo-haptics
+- expo-linear-gradient
+- expo-status-bar
+- expo-linking
+- expo-clipboard
+
+### Project Structure (expo-router file-based routing)
 \`\`\`
-App.tsx                 # Entry point — ALWAYS required
-components/             # Reusable components (TabNavigator, Navigator, Modal, ScreenHeader)
-screens/                # Screen components
-hooks/                  # Custom hooks
-utils/                  # Utility functions
-constants/              # App constants (colors, spacing)
-types/                  # TypeScript types
+App.tsx                    # Entry point — renders ExpoRoot or <Slot />
+app/
+  _layout.tsx              # Root layout (Stack, Tabs, or NativeTabs)
+  (tabs)/
+    _layout.tsx            # Tab layout
+    index.tsx              # Home tab (matches /)
+    explore.tsx            # Explore tab
+    profile.tsx            # Profile tab
+  [id].tsx                 # Dynamic route
+  modal.tsx                # Modal screen
+components/                # Reusable components
+hooks/                     # Custom hooks
+utils/                     # Utility functions
+constants/                 # App constants (colors, spacing)
+types/                     # TypeScript types
 \`\`\`
-
-### CRITICAL: NO expo-router
-- Do NOT import from \`expo-router\` — it does NOT work in this environment
-- Do NOT create an \`app/\` directory for file-based routing
-- Use state-based navigation (see Navigation section)
-- Always export a default component from \`App.tsx\`
 
 ### File Naming
-- Use kebab-case for files: \`comment-card.tsx\`, \`use-search.ts\`
-- Screen files go in \`screens/\`: \`HomeScreen.tsx\`, \`ProfileScreen.tsx\`
-- Component files go in \`components/\`: \`TabNavigator.tsx\`, \`ScreenHeader.tsx\`
+- Use kebab-case for component files: \`comment-card.tsx\`, \`use-search.ts\`
+- Route files use lowercase: \`index.tsx\`, \`profile.tsx\`, \`[id].tsx\`
+- Layout files are always \`_layout.tsx\`
+- Never co-locate components/utils inside the \`app/\` directory
 
 ### Code Style
 - Always use import statements at top of file
-- Be cautious of unterminated strings - escape nested backticks
+- Be cautious of unterminated strings — escape nested backticks
 - TypeScript strict mode enabled
-- Use \`export default\` for screen and page components
-
-### IMPORTANT: Web Preview Compatibility
-This app runs in a browser-based react-native-web preview. Keep code simple:
-- Do NOT use packages that require native builds
-- Do NOT use file system APIs, camera, haptics, or device-specific APIs
-- Do NOT use react-native-reanimated — use Animated from react-native
-- Use StyleSheet.create for styles
-- For storage, use a simple in-memory store or wrap localStorage
-- For images, use \`<Image source={{ uri: 'https://...' }} />\` from react-native`;
+- Use \`export default\` for route/screen components
+- Use named exports for components and hooks`;
 
 export const EXPO_PACKAGES = `## Available Packages
 
-### UI Components (from react-native / react-native-web)
+### Core UI (from react-native)
 \`\`\`typescript
-import { View, Text, Pressable, ScrollView, FlatList, TextInput, Switch, StyleSheet, Platform, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, FlatList, TextInput, Switch, StyleSheet, Platform, ActivityIndicator, Alert, Linking, KeyboardAvoidingView } from 'react-native';
 import { useWindowDimensions } from 'react-native';
 \`\`\`
 
-### Icons
+### Images (expo-image — preferred over RN Image)
 \`\`\`typescript
-import { Home, Settings, User } from 'lucide-react-native';
+import { Image } from 'expo-image';
+
+<Image
+  source={{ uri: 'https://example.com/photo.jpg' }}
+  style={{ width: 200, height: 200 }}
+  contentFit="cover"
+  placeholder={{ blurhash: 'LEHV6nWB2yk8' }}
+  transition={200}
+/>
 \`\`\`
 
-### Storage (localStorage wrapper for web)
+### Icons (@expo/vector-icons)
 \`\`\`typescript
-// utils/storage.ts — simple AsyncStorage replacement for web
-const storage = {
-  getItem: async (key: string): Promise<string | null> => {
-    try { return localStorage.getItem(key); } catch { return null; }
-  },
-  setItem: async (key: string, value: string): Promise<void> => {
-    try { localStorage.setItem(key, value); } catch { /* ignore */ }
-  },
-  removeItem: async (key: string): Promise<void> => {
-    try { localStorage.removeItem(key); } catch { /* ignore */ }
-  },
-};
-export default storage;
+import { Ionicons } from '@expo/vector-icons';
+
+<Ionicons name="home" size={24} color="#fff" />
+<Ionicons name="heart" size={24} color="#FF3B30" />
+<Ionicons name="settings-outline" size={24} color="#8e8e93" />
+\`\`\`
+
+### Navigation (expo-router)
+\`\`\`typescript
+import { Link, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack } from 'expo-router/stack';
+import { Tabs } from 'expo-router';
+\`\`\`
+
+### Safe Area
+\`\`\`typescript
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+\`\`\`
+
+### Storage
+\`\`\`typescript
+import AsyncStorage from '@react-native-async-storage/async-storage';
+\`\`\`
+
+### Effects
+\`\`\`typescript
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 \`\`\``;
 
 export const EXPO_BEST_PRACTICES = `## Best Practices
 
 ### Responsiveness
-- ALWAYS wrap root content in ScrollView for responsiveness
+- ALWAYS wrap root content in ScrollView with \`contentInsetAdjustmentBehavior="automatic"\`
 - Use flexbox for layout instead of fixed dimensions
 - ALWAYS prefer \`useWindowDimensions\` over \`Dimensions.get()\`
-- Test with both phone and tablet device sizes
+- Use \`contentContainerStyle\` for ScrollView padding (not style prop)
+
+### Safe Area
+- Use \`react-native-safe-area-context\` for proper insets
+- Use \`<SafeAreaView>\` or \`useSafeAreaInsets()\` hook
+- Stack headers and Tab bars handle safe area automatically
+- For custom layouts, always account for both top AND bottom insets
 
 ### Text Content
 - Use \`<Text selectable />\` for data that could be copied
 - Format large numbers: 1.4M, 38k instead of 1400000
+- Use \`{ fontVariant: ['tabular-nums'] }\` for counters
 
 ### Performance
 - Use FlatList for lists (not ScrollView with map)
 - Proper key props on list items
-- Avoid inline functions in render when possible
 - Use useCallback/useMemo appropriately
+- Use \`react-native-reanimated\` for 60fps animations
 
 ### Images
-- Use Image from react-native with \`source={{ uri: '...' }}\`
-- Always specify width and height for images
-- Use resizeMode="cover" for background-style images
+- Use \`expo-image\` Image component (not RN Image)
+- Use \`contentFit="cover"\` instead of \`resizeMode\`
+- Use blurhash placeholders for smooth loading
+- Always specify width and height
 
 ### Error Handling
 - Always use try/catch for async operations

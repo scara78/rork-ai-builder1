@@ -1,9 +1,8 @@
 /**
- * UI Patterns and Knowledge Base
- * For React Native Web preview environment
+ * UI Patterns, Data Fetching, Storage, and Package Rules
+ * For Expo Snack SDK environment
  */
 
-// Consolidated UI guidelines
 export const EXPO_UI_GUIDELINES = `## Common UI Patterns (Frequently Needed)
 
 ### ActivityIndicator (Loading Spinner)
@@ -71,14 +70,33 @@ function RefreshableList() {
 \`\`\`typescript
 import { Linking } from 'react-native';
 
-// Open URL in browser
 Linking.openURL('https://example.com');
-
-// Open email
 Linking.openURL('mailto:support@example.com');
 \`\`\`
 
-### Simple State Management (React Context)
+### StatusBar
+\`\`\`typescript
+import { StatusBar } from 'expo-status-bar';
+
+// In your root layout
+<StatusBar style="light" />
+\`\`\`
+
+### Linear Gradient
+\`\`\`typescript
+import { LinearGradient } from 'expo-linear-gradient';
+
+<LinearGradient
+  colors={['#007AFF', '#BF5AF2']}
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 1 }}
+  style={{ flex: 1, padding: 16 }}
+>
+  <Text style={{ color: '#fff' }}>Gradient background</Text>
+</LinearGradient>
+\`\`\`
+
+### State Management (React Context)
 \`\`\`typescript
 // context/AppContext.tsx
 import React, { createContext, useContext, useState, ReactNode } from 'react';
@@ -125,7 +143,7 @@ function useApi<T>(url: string) {
 
   useEffect(() => {
     let cancelled = false;
-    
+
     async function load() {
       try {
         setLoading(true);
@@ -140,7 +158,7 @@ function useApi<T>(url: string) {
         if (!cancelled) setLoading(false);
       }
     }
-    
+
     load();
     return () => { cancelled = true; };
   }, [url]);
@@ -154,21 +172,64 @@ Use AbortController to cancel requests when component unmounts:
 \`\`\`typescript
 useEffect(() => {
   const controller = new AbortController();
-  
+
   fetch(url, { signal: controller.signal })
     .then(res => res.json())
     .then(setData)
     .catch(err => {
       if (err.name !== 'AbortError') setError(err.message);
     });
-  
+
   return () => controller.abort();
 }, [url]);
 \`\`\``;
 
 export const EXPO_ANIMATIONS = `## Animations
 
-### Simple Animations with React Native Animated
+### react-native-reanimated (Recommended)
+\`\`\`typescript
+import Animated, { FadeIn, FadeOut, FadeInUp, SlideInRight, withSpring, useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+
+// Entering/Exiting — declarative, zero config
+<Animated.View entering={FadeIn.duration(300)} exiting={FadeOut}>
+  <Text>Fade in content</Text>
+</Animated.View>
+
+// Staggered list
+{items.map((item, i) => (
+  <Animated.View key={item.id} entering={FadeInUp.delay(i * 80).springify()}>
+    <ItemCard item={item} />
+  </Animated.View>
+))}
+\`\`\`
+
+### Shared Value Animations
+\`\`\`typescript
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+
+function AnimatedCard() {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Pressable
+      onPressIn={() => { scale.value = withSpring(0.95); }}
+      onPressOut={() => { scale.value = withSpring(1); }}
+    >
+      <Animated.View style={animatedStyle}>
+        <Card />
+      </Animated.View>
+    </Pressable>
+  );
+}
+\`\`\`
+
+### Fallback: Animated from react-native
 \`\`\`typescript
 import { Animated, Easing } from 'react-native';
 import { useRef, useEffect } from 'react';
@@ -190,99 +251,39 @@ function FadeInView({ children }: { children: React.ReactNode }) {
     </Animated.View>
   );
 }
-\`\`\`
-
-### Slide-In Animation
-\`\`\`typescript
-function SlideInView({ children }: { children: React.ReactNode }) {
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return (
-    <Animated.View style={{ 
-      opacity: fadeAnim, 
-      transform: [{ translateY: slideAnim }] 
-    }}>
-      {children}
-    </Animated.View>
-  );
-}
-\`\`\`
-
-### Staggered List Animation
-\`\`\`typescript
-function StaggeredList({ items }: { items: any[] }) {
-  return (
-    <>
-      {items.map((item, index) => {
-        const fadeAnim = useRef(new Animated.Value(0)).current;
-        
-        useEffect(() => {
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            delay: index * 100,
-            useNativeDriver: true,
-          }).start();
-        }, []);
-        
-        return (
-          <Animated.View key={item.id} style={{ opacity: fadeAnim }}>
-            <ItemCard item={item} />
-          </Animated.View>
-        );
-      })}
-    </>
-  );
-}
 \`\`\``;
 
 export const EXPO_STORAGE = `## Storage Patterns
 
-### localStorage Wrapper (AsyncStorage replacement for web)
+### AsyncStorage (@react-native-async-storage/async-storage)
 \`\`\`typescript
-// utils/storage.ts
-const storage = {
-  getItem: async (key: string): Promise<string | null> => {
-    try { return localStorage.getItem(key); } catch { return null; }
-  },
-  setItem: async (key: string, value: string): Promise<void> => {
-    try { localStorage.setItem(key, value); } catch { /* ignore */ }
-  },
-  removeItem: async (key: string): Promise<void> => {
-    try { localStorage.removeItem(key); } catch { /* ignore */ }
-  },
-};
-export default storage;
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Store data
+await AsyncStorage.setItem('user_token', 'abc123');
+
+// Read data
+const token = await AsyncStorage.getItem('user_token');
+
+// Remove data
+await AsyncStorage.removeItem('user_token');
+
+// Store objects
+await AsyncStorage.setItem('user', JSON.stringify({ name: 'Alex', age: 30 }));
+const user = JSON.parse(await AsyncStorage.getItem('user') || '{}');
 \`\`\`
 
 ### Custom Hook for Persistent State
 \`\`\`typescript
 import { useState, useEffect } from 'react';
-import storage from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function useStoredState<T>(key: string, defaultValue: T) {
   const [value, setValue] = useState<T>(defaultValue);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    storage.getItem(key).then(stored => {
+    AsyncStorage.getItem(key).then(stored => {
       if (stored) setValue(JSON.parse(stored));
       setLoaded(true);
     });
@@ -290,49 +291,55 @@ function useStoredState<T>(key: string, defaultValue: T) {
 
   const setAndStore = (newValue: T) => {
     setValue(newValue);
-    storage.setItem(key, JSON.stringify(newValue));
+    AsyncStorage.setItem(key, JSON.stringify(newValue));
   };
 
   return [value, setAndStore, loaded] as const;
 }
 \`\`\``;
 
-export const EXPO_CONTROLS = `## Package Rules (React Native Web Preview)
+export const EXPO_CONTROLS = `## Package Rules (Expo Snack Environment)
 
-### Allowed packages
+### Available Packages — USE THESE
 | Package | Notes |
 |---------|-------|
-| react, react-native | Core — react-native is aliased to react-native-web |
-| lucide-react-native | Icons for the project |
-| react-native-web | Automatically aliased from react-native |
-| three, @react-three/fiber, @react-three/drei | Supported for 3D games and AR UI |
+| react, react-native | Core framework |
+| expo-router | File-based routing and navigation |
+| @expo/vector-icons | Icon families (Ionicons, MaterialIcons, FontAwesome, Feather) |
+| react-native-safe-area-context | Safe area insets |
+| react-native-reanimated | Smooth animations (UI thread) |
+| react-native-gesture-handler | Touch gestures |
+| @react-native-async-storage/async-storage | Persistent key-value storage |
+| expo-image | Fast image component with blurhash |
+| expo-blur | Native blur effects (BlurView) |
+| expo-haptics | Tactile feedback (iOS) |
+| expo-linear-gradient | Gradient backgrounds |
+| expo-status-bar | Status bar styling |
+| expo-constants | Device/app constants |
+| expo-font | Custom fonts |
+| expo-linking | URL handling |
+| expo-clipboard | Clipboard access |
+| three, @react-three/fiber, @react-three/drei | 3D graphics (web preview) |
 
-### BANNED packages — DO NOT USE
-- **expo-router** — NO file-system routing! Use state-based navigation
-- **expo-status-bar** — not available in web environment
-- **expo-blur** — not available in react-native-web
-- **expo-linear-gradient** — use CSS-style gradient via web styles if needed
-- **expo-image** — use \`<Image>\` from react-native directly
-- **expo-av** — no audio/video support in web preview
-- **expo-camera** — no camera in browser preview
-- **expo-haptics** — no haptics on web
-- **expo-image-picker** — no file picker in web preview
-- **expo-constants**, **expo-font**, **expo-file-system** — not available
-- **react-native-safe-area-context** — use manual padding instead
-- **react-native-gesture-handler** — use Pressable from react-native
-- **react-native-reanimated** — use Animated from react-native
-- **@react-native-async-storage/async-storage** — use localStorage wrapper (see storage patterns)
-- **@expo/vector-icons** — use lucide-react-native
-- **@tamagui/core** or any tamagui package
-- **nativewind** or **tailwind** — use StyleSheet.create
-- **react-native-svg** — not available
-- **react-native-maps** — not available
+### BANNED Packages — DO NOT USE
+- **lucide-react-native** — use \`@expo/vector-icons\` (Ionicons) instead
+- **nativewind** / **tailwind** — use StyleSheet.create
+- **@tamagui/core** or any tamagui package — not available
 - **@shopify/flash-list** — use FlatList from react-native
+- **react-native-svg** — not preloaded in Snack, use icons from @expo/vector-icons
+- **react-native-maps** — not available in Snack web preview
+- **expo-gl** — use @react-three/fiber for 3D on web
 
-### Icons: ALWAYS use lucide-react-native
+### Platform-Specific Considerations
+- \`expo-haptics\` — wrap calls in \`Platform.OS !== 'web'\` check
+- \`expo-camera\` — works on device, show placeholder on web
+- \`expo-audio\` / \`expo-video\` — works on device, may not render on web
+- Always test that your app works in BOTH web preview AND on device via Expo Go
+
+### Icons: ALWAYS use @expo/vector-icons
 \`\`\`typescript
-import { Heart } from 'lucide-react-native';
-<Heart size={24} color="#FF6B6B" />
+import { Ionicons } from '@expo/vector-icons';
+<Ionicons name="heart" size={24} color="#FF6B6B" />
 \`\`\`
 
-Do NOT import packages outside the allowed list above. Keep dependencies minimal.`;
+Do NOT use packages outside the available list above unless absolutely necessary. Keep dependencies minimal.`;

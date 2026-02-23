@@ -1,68 +1,72 @@
 /**
- * Styling Rules for React Native Web preview
- * StyleSheet.create, shadows, safe areas, animations
+ * Styling Rules for Expo Snack environment
+ * StyleSheet.create, CSS boxShadow, safe areas, reanimated animations
  */
 
 export const STYLING_RULES = `## Styling Rules
 
 ### General Rules
-- Use **StyleSheet.create** for all styles
-- **CSS and Tailwind NOT supported** - use React Native styles only
+- Use **StyleSheet.create** for all styles (inline styles also acceptable)
+- **CSS and Tailwind NOT supported** — use React Native styles only
 - Prefer flex gap over margin/padding where supported
 - Prefer padding over margin where possible
+- Use \`{ borderCurve: 'continuous' }\` for rounded corners (iOS continuous corners)
 - ALWAYS use navigation stack title instead of custom text on page
 
 ### Safe Area Handling
-- ALWAYS account for safe area (top AND bottom)
-- Use Stack headers, tabs, or ScrollView with \`contentInsetAdjustmentBehavior="automatic"\`
+- ALWAYS use \`react-native-safe-area-context\` for proper safe area insets
+- Use \`<SafeAreaView>\` or \`useSafeAreaInsets()\` hook
+- Stack headers and Tab bars handle safe area automatically
+- When using ScrollView: \`contentInsetAdjustmentBehavior="automatic"\` handles safe area
 - When padding a ScrollView, use \`contentContainerStyle\` padding instead of ScrollView padding
 
-### Shadows
-Use React Native shadow styles (NOT CSS boxShadow):
+\`\`\`tsx
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Option 1: SafeAreaView wrapper
+<SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+  {/* Content */}
+</SafeAreaView>
+
+// Option 2: Hook for custom insets
+function Screen() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+      {/* Content */}
+    </View>
+  );
+}
+\`\`\`
+
+### Shadows — Use CSS boxShadow
+Use the CSS \`boxShadow\` style prop. NEVER use legacy React Native shadow props (shadowColor, shadowOffset, shadowOpacity, shadowRadius) or elevation.
 
 \`\`\`tsx
-// CORRECT - React Native shadow styles
+// CORRECT — CSS boxShadow
 <View style={{
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 4,
-  elevation: 3, // Android shadow
-  backgroundColor: '#fff', // Required for shadow to show
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+  backgroundColor: '#1c1c1e',
+  borderRadius: 12,
 }} />
+
+// Inset shadows are supported too
+<View style={{ boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.2)' }} />
 \`\`\`
 
 ### Common Shadow Presets
 \`\`\`tsx
 const shadows = {
-  sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
-  },
+  sm: { boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)' },
+  md: { boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)' },
+  lg: { boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)' },
 };
 \`\`\`
 
 ### Border Radius
 \`\`\`tsx
-// Standard rounded corners
-<View style={{ borderRadius: 16 }} />
+// Standard rounded corners with continuous curve
+<View style={{ borderRadius: 16, borderCurve: 'continuous' }} />
 
 // Pill/capsule shape
 <View style={{ borderRadius: 9999 }} />
@@ -109,13 +113,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#1c1c1e',
     borderRadius: 12,
+    borderCurve: 'continuous',
     padding: 16,
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
   },
   cardTitle: {
     fontSize: 17,
@@ -131,13 +132,15 @@ const styles = StyleSheet.create({
 
 ### Row Pattern
 \`\`\`tsx
+import { Ionicons } from '@expo/vector-icons';
+
 <View style={styles.row}>
-  <Star size={24} color="#FFD60A" fill="#FFD60A" />
+  <Ionicons name="star" size={24} color="#FFD60A" />
   <View style={{ flex: 1 }}>
     <Text style={styles.rowTitle}>Title</Text>
     <Text style={styles.rowSubtitle}>Subtitle</Text>
   </View>
-  <ChevronRight size={20} color="#48484a" />
+  <Ionicons name="chevron-forward" size={20} color="#48484a" />
 </View>
 \`\`\``;
 
@@ -146,6 +149,7 @@ export const TEXT_STYLING = `## Text Styling
 ### Text Rules
 - Add \`selectable\` prop to every <Text/> displaying important data or error messages
 - Format large numbers: 1.4M, 38k instead of 1400000
+- Use \`{ fontVariant: ['tabular-nums'] }\` for counters and numbers that change
 
 ### Typography Scale
 \`\`\`tsx
@@ -172,12 +176,12 @@ const colors = {
   background: '#0a0a0a',
   surface: '#1c1c1e',
   surfaceSecondary: '#2c2c2e',
-  
+
   // Text
   textPrimary: '#ffffff',
   textSecondary: '#8e8e93',
   textTertiary: '#48484a',
-  
+
   // Accent
   blue: '#007AFF',
   green: '#30D158',
@@ -187,7 +191,7 @@ const colors = {
   purple: '#BF5AF2',
   pink: '#FF2D55',
   teal: '#64D2FF',
-  
+
   // Borders
   border: '#38383a',
   separator: '#2c2c2e',
@@ -197,17 +201,17 @@ const colors = {
 export const RESPONSIVE_DESIGN = `## Responsive Design
 
 ### Screen Dimensions
-ALWAYS use \`useWindowDimensions\` - never \`Dimensions.get()\`:
+ALWAYS use \`useWindowDimensions\` — never \`Dimensions.get()\`:
 
 \`\`\`tsx
 import { useWindowDimensions } from 'react-native';
 
 function Component() {
   const { width, height } = useWindowDimensions();
-  
+
   const isTablet = width >= 768;
   const columns = width >= 1024 ? 4 : width >= 768 ? 3 : 2;
-  
+
   return (
     <View style={{ padding: isTablet ? 24 : 16 }}>
       {/* ... */}
@@ -230,16 +234,20 @@ Use flexbox instead of absolute positioning:
 </View>
 \`\`\`
 
-### Safe Area
-The preview has a built-in status bar (54px top) and home indicator (34px bottom).
-Do NOT import react-native-safe-area-context. Use constant padding instead:
+### Safe Area with react-native-safe-area-context
 \`\`\`tsx
-// Safe area constants (matches the phone chrome in preview)
-const SAFE_AREA = { top: 54, bottom: 34 };
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function Screen() {
+function CustomScreen() {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={{ paddingTop: SAFE_AREA.top, paddingBottom: SAFE_AREA.bottom }}>
+    <View style={{
+      flex: 1,
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom,
+      backgroundColor: '#0a0a0a',
+    }}>
       {/* Content */}
     </View>
   );
@@ -260,13 +268,72 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 
 export const ANIMATION_STYLING = `## Animation Patterns
 
-IMPORTANT: Do NOT use react-native-reanimated. It is NOT available in this environment.
-Use ONLY \`Animated\` from \`react-native\` for all animations.
+### react-native-reanimated (Recommended)
+Use \`react-native-reanimated\` for smooth 60fps animations. It runs on the UI thread.
 
-### Fade-In Animation
 \`\`\`tsx
-import { Animated } from 'react-native';
-import { useRef, useEffect } from 'react';
+import Animated, { FadeIn, FadeOut, SlideInRight, withSpring, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+
+// Entering/Exiting animations (declarative)
+<Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
+  <Text style={{ color: '#fff' }}>Animated content</Text>
+</Animated.View>
+
+// Slide in from right
+<Animated.View entering={SlideInRight.springify()}>
+  <Card />
+</Animated.View>
+\`\`\`
+
+### Spring Animation with Shared Values
+\`\`\`tsx
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+
+function ScaleButton({ children, onPress }: { children: React.ReactNode; onPress: () => void }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      onPressIn={() => { scale.value = withSpring(0.95); }}
+      onPressOut={() => { scale.value = withSpring(1); }}
+      onPress={onPress}
+    >
+      <Animated.View style={animatedStyle}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
+\`\`\`
+
+### Staggered List Animation
+\`\`\`tsx
+import Animated, { FadeInUp } from 'react-native-reanimated';
+
+function StaggeredList({ items }: { items: any[] }) {
+  return (
+    <>
+      {items.map((item, index) => (
+        <Animated.View
+          key={item.id}
+          entering={FadeInUp.delay(index * 80).springify()}
+        >
+          <ItemCard item={item} />
+        </Animated.View>
+      ))}
+    </>
+  );
+}
+\`\`\`
+
+### Fallback: Animated from react-native
+If reanimated causes issues, you can use the built-in \`Animated\` API:
+\`\`\`tsx
+import { Animated, Easing } from 'react-native';
 
 function FadeInView({ children }: { children: React.ReactNode }) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -281,54 +348,4 @@ function FadeInView({ children }: { children: React.ReactNode }) {
 
   return <Animated.View style={{ opacity }}>{children}</Animated.View>;
 }
-\`\`\`
-
-### Slide-In + Fade Animation
-\`\`\`tsx
-function SlideInView({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  const translateY = useRef(new Animated.Value(20)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 350,
-        delay,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 350,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return (
-    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
-      {children}
-    </Animated.View>
-  );
-}
-\`\`\`
-
-### Spring Animation
-\`\`\`tsx
-const scale = useRef(new Animated.Value(1)).current;
-
-const onPressIn = () => {
-  Animated.spring(scale, { toValue: 0.95, useNativeDriver: true }).start();
-};
-const onPressOut = () => {
-  Animated.spring(scale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
-};
-
-<Animated.View style={{ transform: [{ scale }] }}>
-  <Pressable onPressIn={onPressIn} onPressOut={onPressOut}>
-    <Content />
-  </Pressable>
-</Animated.View>
 \`\`\``;

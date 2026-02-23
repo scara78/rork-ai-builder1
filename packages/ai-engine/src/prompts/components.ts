@@ -1,95 +1,106 @@
 /**
- * Component Patterns for React Native Web preview
- * lucide-react-native, Image, Native Controls
+ * Component Patterns for Expo Snack environment
+ * @expo/vector-icons, expo-image, expo-blur, expo-haptics, native controls
  */
 
-export const SF_SYMBOLS = `## Icons (lucide-react-native)
+export const SF_SYMBOLS = `## Icons (@expo/vector-icons)
 
-Use \`lucide-react-native\` for app icons. This is the icon library available in the preview environment.
+Use \`@expo/vector-icons\` for app icons. Multiple icon families are available.
 
-### Basic Usage
+### Basic Usage (Ionicons — recommended)
 \`\`\`tsx
-import { Home, Heart, Settings, User } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-<Home size={24} color="#fff" />
+<Ionicons name="home" size={24} color="#fff" />
+<Ionicons name="home-outline" size={24} color="#8e8e93" />
+\`\`\`
+
+### Other Icon Families
+\`\`\`tsx
+import { MaterialIcons, FontAwesome, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+
+<MaterialIcons name="dashboard" size={24} color="#fff" />
+<FontAwesome name="star" size={24} color="#FFD60A" />
+<Feather name="search" size={24} color="#fff" />
 \`\`\`
 
 ### Icon in Pressable
 \`\`\`tsx
 <Pressable onPress={handlePress} style={{ padding: 8 }}>
-  <Heart size={24} color="#FF3B30" />
+  <Ionicons name="heart" size={24} color="#FF3B30" />
 </Pressable>
 \`\`\`
 
-### Common Lucide Icons
+### Common Ionicons Names
 
 **Navigation & Actions:**
-- \`Home\`
-- \`Settings\`
-- \`Search\`
-- \`Plus\` / \`PlusCircle\`
-- \`X\` / \`XCircle\`
-- \`ChevronLeft\` / \`ChevronRight\`
-- \`ArrowLeft\` / \`ArrowRight\`
-- \`Menu\` / \`MoreHorizontal\` / \`MoreVertical\`
+- \`home\` / \`home-outline\`
+- \`settings\` / \`settings-outline\`
+- \`search\` / \`search-outline\`
+- \`add\` / \`add-circle\` / \`add-circle-outline\`
+- \`close\` / \`close-circle\`
+- \`chevron-back\` / \`chevron-forward\`
+- \`arrow-back\` / \`arrow-forward\`
+- \`menu\` / \`ellipsis-horizontal\` / \`ellipsis-vertical\`
 
 **Media:**
-- \`Play\` / \`Pause\` / \`Square\`
-- \`Volume2\` / \`VolumeX\`
-- \`Camera\`
-- \`Image\`
-- \`Mic\`
-- \`Music\`
+- \`play\` / \`pause\` / \`stop\`
+- \`volume-high\` / \`volume-mute\`
+- \`camera\` / \`camera-outline\`
+- \`image\` / \`image-outline\`
+- \`mic\` / \`mic-outline\`
+- \`musical-notes\`
 
 **Social:**
-- \`Heart\`
-- \`Star\`
-- \`ThumbsUp\` / \`ThumbsDown\`
-- \`User\`
-- \`Users\`
-- \`MessageCircle\`
+- \`heart\` / \`heart-outline\`
+- \`star\` / \`star-outline\`
+- \`thumbs-up\` / \`thumbs-down\`
+- \`person\` / \`person-outline\`
+- \`people\` / \`people-outline\`
+- \`chatbubble\` / \`chatbubble-outline\`
 
 **Content Actions:**
-- \`Share\` / \`Share2\`
-- \`Download\`
-- \`Copy\`
-- \`Trash\` / \`Trash2\`
-- \`Edit\` / \`Edit2\` / \`Pen\`
-- \`Bookmark\`
+- \`share\` / \`share-outline\`
+- \`download\` / \`download-outline\`
+- \`copy\` / \`copy-outline\`
+- \`trash\` / \`trash-outline\`
+- \`create\` / \`create-outline\`
+- \`bookmark\` / \`bookmark-outline\`
 
 **Status:**
-- \`Check\` / \`CheckCircle\`
-- \`AlertCircle\` / \`AlertTriangle\`
-- \`Info\`
-- \`Bell\` / \`BellOff\`
-- \`Eye\` / \`EyeOff\`
+- \`checkmark\` / \`checkmark-circle\`
+- \`alert-circle\` / \`warning\`
+- \`information-circle\`
+- \`notifications\` / \`notifications-outline\`
+- \`eye\` / \`eye-off\`
 
 **Misc:**
-- \`RefreshCw\`
-- \`MapPin\`
-- \`Map\`
-- \`Clock\`
-- \`Calendar\`
-- \`ShoppingCart\`
-- \`Globe\`
-- \`Filter\` / \`Sliders\`
-- \`Zap\` / \`ZapOff\`
-- \`Moon\` / \`Sun\`
-- \`LogOut\` / \`LogIn\`
+- \`refresh\`
+- \`location\` / \`location-outline\`
+- \`map\` / \`map-outline\`
+- \`time\` / \`time-outline\`
+- \`calendar\` / \`calendar-outline\`
+- \`cart\` / \`cart-outline\`
+- \`globe\`
+- \`filter\`
+- \`flash\` / \`flash-off\`
+- \`moon\` / \`sunny\`
+- \`log-out\` / \`log-in\`
 `;
 
-export const EXPO_IMAGE = `## Images (react-native Image)
+export const EXPO_IMAGE = `## Images (expo-image)
 
-Use Image from react-native for ALL images. This renders correctly via react-native-web.
+Use \`expo-image\` for ALL images. It's faster and more feature-rich than RN Image.
 
 ### Basic Usage
 \`\`\`tsx
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 
 <Image
   source={{ uri: 'https://example.com/image.jpg' }}
   style={{ width: 200, height: 200 }}
-  resizeMode="cover"
+  contentFit="cover"
+  transition={200}
 />
 \`\`\`
 
@@ -98,26 +109,16 @@ import { Image } from 'react-native';
 <Image
   source={{ uri: imageUrl }}
   style={{ width: '100%', aspectRatio: 16 / 9 }}
-  resizeMode="cover"        // cover|contain|stretch|repeat|center
+  contentFit="cover"          // cover|contain|fill|none|scale-down
+  placeholder={{ blurhash: 'LEHV6nWB2yk8' }}  // Blur placeholder while loading
+  transition={200}            // Fade-in duration ms
 />
 \`\`\`
 
 ### Avatar Pattern
 \`\`\`tsx
-<Image
-  source={{ uri: avatarUrl }}
-  style={{
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  }}
-  resizeMode="cover"
-/>
-\`\`\`
-
-### Placeholder for missing images
-\`\`\`tsx
-import { User } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 
 function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
   if (!uri) {
@@ -126,7 +127,7 @@ function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
         width: size, height: size, borderRadius: size / 2,
         backgroundColor: '#2c2c2e', alignItems: 'center', justifyContent: 'center',
       }}>
-        <User size={size * 0.5} color="#8e8e93" />
+        <Ionicons name="person" size={size * 0.5} color="#8e8e93" />
       </View>
     );
   }
@@ -134,20 +135,37 @@ function Avatar({ uri, size = 48 }: { uri?: string; size?: number }) {
     <Image
       source={{ uri }}
       style={{ width: size, height: size, borderRadius: size / 2 }}
-      resizeMode="cover"
+      contentFit="cover"
+      transition={200}
     />
   );
 }
 \`\`\``;
 
-export const MEDIA_COMPONENTS = `## Media (Limited in Web Preview)
+export const MEDIA_COMPONENTS = `## Media Components
 
-Audio, video, and camera are NOT available in the web preview environment.
-For apps that need media features, create placeholder UI that shows a mockup.
-
-### Audio Player Placeholder
+### Camera (expo-camera)
 \`\`\`tsx
-import { Play, Pause } from 'lucide-react-native';
+// NOTE: Camera works on real devices via Expo Go but NOT in web preview.
+// Design camera UIs to degrade gracefully with a placeholder on web.
+import { Ionicons } from '@expo/vector-icons';
+
+function CameraPlaceholder({ onPress }: { onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={styles.cameraPlaceholder}>
+      <Ionicons name="camera" size={32} color="#8e8e93" />
+      <Text style={{ color: '#8e8e93', fontSize: 12, marginTop: 8 }}>Tap to take photo</Text>
+    </Pressable>
+  );
+}
+\`\`\`
+
+### Audio/Video
+For audio use \`expo-audio\`, for video use \`expo-video\`. These work on device but may not render in web preview.
+Design placeholder UIs for web:
+
+\`\`\`tsx
+import { Ionicons } from '@expo/vector-icons';
 
 function AudioPlayer({ title }: { title: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -155,7 +173,7 @@ function AudioPlayer({ title }: { title: string }) {
   return (
     <View style={styles.player}>
       <Pressable onPress={() => setIsPlaying(!isPlaying)}>
-        {isPlaying ? <Pause size={32} color="#fff" /> : <Play size={32} color="#fff" />}
+        <Ionicons name={isPlaying ? 'pause' : 'play'} size={32} color="#fff" />
       </Pressable>
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{title}</Text>
@@ -166,54 +184,60 @@ function AudioPlayer({ title }: { title: string }) {
     </View>
   );
 }
-\`\`\`
-
-### Image Placeholder (for camera/gallery features)
-\`\`\`tsx
-import { Camera } from 'lucide-react-native';
-
-function ImagePlaceholder({ onPress }: { onPress?: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={styles.imagePlaceholder}>
-      <Camera size={32} color="#8e8e93" />
-      <Text style={{ color: '#8e8e93', fontSize: 12, marginTop: 8 }}>Tap to add photo</Text>
-    </Pressable>
-  );
-}
 \`\`\``;
 
-export const GLASS_AND_BLUR = `## Glass / Blur Effects (Web Alternative)
+export const GLASS_AND_BLUR = `## Glass / Blur Effects (expo-blur)
 
-BlurView from expo-blur is NOT available. Use semi-transparent backgrounds instead.
+Use \`expo-blur\` for native blur effects. Works on iOS and Android.
 
-### Frosted Glass Effect
+### BlurView Usage
 \`\`\`tsx
+import { BlurView } from 'expo-blur';
+
 function GlassCard({ children }: { children: React.ReactNode }) {
   return (
-    <View style={styles.glassCard}>
+    <BlurView
+      intensity={40}
+      tint="dark"
+      style={styles.glassCard}
+    >
       {children}
-    </View>
+    </BlurView>
   );
 }
 
 const styles = StyleSheet.create({
   glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
+    borderCurve: 'continuous',
     padding: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
 });
 \`\`\`
 
-### Overlay with Semi-transparent Background
+### Blur Overlay
 \`\`\`tsx
-<View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0, 0, 0, 0.6)' }]}>
+import { BlurView } from 'expo-blur';
+
+<View style={[StyleSheet.absoluteFillObject]}>
+  <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
     <Text style={{ color: '#fff', fontSize: 24 }}>Modal Content</Text>
   </View>
 </View>
+\`\`\`
+
+### Fallback for Web Preview
+If BlurView doesn't render on web, use a semi-transparent background:
+\`\`\`tsx
+<View style={{
+  backgroundColor: 'rgba(28, 28, 30, 0.85)',
+  borderRadius: 16,
+  padding: 16,
+}} />
 \`\`\``;
 
 export const NATIVE_CONTROLS = `## Native Controls
@@ -241,6 +265,7 @@ const [enabled, setEnabled] = useState(false);
     padding: 12,
     fontSize: 17,
     borderRadius: 8,
+    borderCurve: 'continuous',
     backgroundColor: '#2c2c2e',
     color: '#fff',
   }}
@@ -267,13 +292,15 @@ const [enabled, setEnabled] = useState(false);
 
 ### Settings Row Pattern
 \`\`\`tsx
-function SettingsRow({ icon: Icon, title, value, onToggle }: {
-  icon: any; title: string; value: boolean; onToggle: (v: boolean) => void;
+import { Ionicons } from '@expo/vector-icons';
+
+function SettingsRow({ iconName, title, value, onToggle }: {
+  iconName: string; title: string; value: boolean; onToggle: (v: boolean) => void;
 }) {
   return (
     <View style={styles.settingsRow}>
       <View style={styles.settingsRowLeft}>
-        <Icon size={22} color="#8e8e93" />
+        <Ionicons name={iconName as any} size={22} color="#8e8e93" />
         <Text style={styles.settingsRowTitle}>{title}</Text>
       </View>
       <Switch
@@ -286,50 +313,50 @@ function SettingsRow({ icon: Icon, title, value, onToggle }: {
 }
 \`\`\``;
 
-export const HAPTICS = `## Haptics
+export const HAPTICS = `## Haptics (expo-haptics)
 
-Haptics are NOT available in the web preview environment.
-Do NOT import or use expo-haptics. Instead, focus on visual feedback:
+Use \`expo-haptics\` for tactile feedback on iOS. Conditionally call it so it doesn't crash on web.
 
-### Visual Feedback Alternatives
+### Basic Usage
 \`\`\`tsx
-// Scale feedback on press
-function PressableWithFeedback({ children, onPress }: { children: React.ReactNode; onPress: () => void }) {
-  const [pressed, setPressed] = useState(false);
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 
-  return (
-    <Pressable
-      onPress={onPress}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
-      style={{
-        opacity: pressed ? 0.7 : 1,
-        transform: [{ scale: pressed ? 0.97 : 1 }],
-      }}
-    >
-      {children}
-    </Pressable>
-  );
+function hapticFeedback(type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') {
+  if (Platform.OS !== 'web') {
+    switch (type) {
+      case 'light': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); break;
+      case 'medium': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); break;
+      case 'heavy': Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); break;
+      case 'success': Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); break;
+      case 'warning': Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); break;
+      case 'error': Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); break;
+    }
+  }
 }
+
+// Usage
+<Pressable onPress={() => { hapticFeedback('light'); handleAction(); }}>
+  <Text>Tap me</Text>
+</Pressable>
 \`\`\`
 
-### Button with Active State
+### Selection Feedback (for pickers, toggles)
 \`\`\`tsx
-<Pressable
-  onPress={handleAction}
-  style={({ pressed }) => [
-    styles.button,
-    pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
-  ]}
->
-  <Text style={styles.buttonText}>Action</Text>
-</Pressable>
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
+
+const onSelectionChange = () => {
+  if (Platform.OS !== 'web') {
+    Haptics.selectionAsync();
+  }
+};
 \`\`\``;
 
 export const THREE_D_GRAPHICS = `## 3D Games and Graphics (Rork Max Feature)
 
-Rork Max supports 3D graphics and games natively on the web using \`@react-three/fiber\` and \`@react-three/drei\`.
-You can build interactive 3D scenes, spinning objects, and mini-games.
+Rork Max supports 3D graphics using \`@react-three/fiber\` and \`@react-three/drei\`.
+These work in the web preview. For native, use \`expo-gl\` as the GL context.
 
 ### Basic 3D Scene
 \`\`\`tsx
@@ -341,7 +368,7 @@ import * as THREE from 'three';
 
 function SpinningCube() {
   const meshRef = useRef<THREE.Mesh>(null);
-  
+
   useFrame((state, delta) => {
     if (meshRef.current) {
       meshRef.current.rotation.x += delta;
@@ -360,7 +387,6 @@ function SpinningCube() {
 export default function GameScreen() {
   return (
     <View style={styles.container}>
-      {/* Canvas from fiber acts as a View in React Native Web */}
       <Canvas style={{ flex: 1 }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
@@ -372,16 +398,13 @@ export default function GameScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  }
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
 });
 \`\`\`
 
 ### Guidelines for 3D
-- Use \`Canvas\` from \`@react-three/fiber\` directly inside a React Native \`View\` with \`flex: 1\`.
-- Remember to import \`three\` when you need specific classes like \`THREE.Mesh\`.
-- \`@react-three/drei\` is available for helpers like \`OrbitControls\`, \`Environment\`, \`Text3D\`.
-- Do NOT use expo-gl; stick to react-three-fiber for Web GL compatibility.
+- Use \`Canvas\` from \`@react-three/fiber\` directly inside a React Native \`View\` with \`flex: 1\`
+- Import \`three\` when you need specific classes like \`THREE.Mesh\`
+- \`@react-three/drei\` provides helpers: \`OrbitControls\`, \`Environment\`, \`Text3D\`
+- 3D works in web preview; for native devices, ensure \`expo-gl\` is available
 `;

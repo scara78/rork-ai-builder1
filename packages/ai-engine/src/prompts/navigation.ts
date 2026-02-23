@@ -1,510 +1,371 @@
 /**
- * Navigation Patterns for React Native Web preview
- * Uses state-based routing (NO expo-router — no file-system routing in browser)
+ * Navigation Patterns for Expo Snack environment
+ * Uses expo-router for file-based routing
  */
 
-export const NATIVE_TABS = `## Tab Navigation (State-Based)
+export const NATIVE_TABS = `## Tab Navigation (expo-router Tabs)
 
-Since this app runs in a react-native-web environment (NOT Expo Go), we use
-state-based navigation instead of expo-router. Build a tab navigator from scratch.
-
-### Tab Navigator Component
+### Tab Layout
 \`\`\`tsx
-// components/TabNavigator.tsx
-import React, { useState } from 'react';
-import { View, Pressable, Text, StyleSheet } from 'react-native';
+// app/(tabs)/_layout.tsx
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-interface Tab {
-  key: string;
-  title: string;
-  icon: any;
-  component: React.ComponentType;
-}
-
-interface TabNavigatorProps {
-  tabs: Tab[];
-  initialTab?: string;
-}
-
-export default function TabNavigator({ tabs, initialTab }: TabNavigatorProps) {
-  const [activeTab, setActiveTab] = useState(initialTab || tabs[0]?.key || '');
-
-  const ActiveScreen = tabs.find(t => t.key === activeTab)?.component;
-
+export default function TabLayout() {
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        {ActiveScreen && <ActiveScreen />}
-      </View>
-      <View style={styles.tabBar}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.key;
-          const Icon = tab.icon;
-          return (
-            <Pressable
-              key={tab.key}
-              style={styles.tabItem}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <View style={styles.tabIconWrap}>
-                <Icon
-                  size={22}
-                  color={isActive ? '#007AFF' : '#8e8e93'}
-                />
-                {isActive && <View style={styles.activeIndicator} />}
-              </View>
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
-                {tab.title}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#8e8e93',
+        tabBarStyle: {
+          backgroundColor: '#1c1c1e',
+          borderTopColor: '#38383a',
+        },
+        headerStyle: { backgroundColor: '#0a0a0a' },
+        headerTintColor: '#fff',
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Explore',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="compass" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+\`\`\`
+
+### Tab Screen Example
+\`\`\`tsx
+// app/(tabs)/index.tsx
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+
+export default function HomeScreen() {
+  return (
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={styles.content}
+      style={styles.container}
+    >
+      <Text style={styles.title}>Home</Text>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1 },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(28, 28, 30, 0.92)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#38383a',
-    height: 49,
-    alignItems: 'center',
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    paddingVertical: 4,
-  },
-  tabIconWrap: {
-    alignItems: 'center',
-    position: 'relative',
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: -4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#007AFF',
-  },
-  tabLabel: {
-    fontSize: 10,
-    color: '#8e8e93',
-    marginTop: 2,
-  },
-  tabLabelActive: {
-    color: '#007AFF',
-  },
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  content: { padding: 16, gap: 16 },
+  title: { fontSize: 28, fontWeight: '700', color: '#fff' },
 });
 \`\`\`
 
-### Using the Tab Navigator in App.tsx
+### Common Ionicons Names
+**Navigation:** home, compass, search, arrow-back, chevron-forward, menu
+**Social:** heart, heart-outline, person, people, chatbubble
+**Media:** camera, image, play, musical-notes, mic
+**Actions:** add, close, checkmark, trash, create, share
+**Status:** notifications, settings, star, bookmark, flag
+**Misc:** cart, calendar, location, time, globe, filter`;
+
+export const LINK_PATTERNS = `## Navigation Between Screens
+
+### Using Link Component
 \`\`\`tsx
-// App.tsx
-import React from 'react';
-import { Home, Compass, User } from 'lucide-react-native';
-import TabNavigator from './components/TabNavigator';
-import HomeScreen from './screens/HomeScreen';
-import ExploreScreen from './screens/ExploreScreen';
-import ProfileScreen from './screens/ProfileScreen';
+import { Link } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
 
-const tabs = [
-  { key: 'home', title: 'Home', icon: Home, component: HomeScreen },
-  { key: 'explore', title: 'Explore', icon: Compass, component: ExploreScreen },
-  { key: 'profile', title: 'Profile', icon: User, component: ProfileScreen },
-];
+// Simple text link
+<Link href="/details/123">
+  <Text style={{ color: '#007AFF' }}>View Details</Text>
+</Link>
 
-export default function App() {
-  return <TabNavigator tabs={tabs} />;
-}
+// Wrapping a custom component
+<Link href="/details/123" asChild>
+  <Pressable style={styles.card}>
+    <Text style={styles.cardTitle}>Item Title</Text>
+  </Pressable>
+</Link>
 \`\`\`
 
-### Common Lucide Icons
-**Navigation:** Home, Compass, Search
-**Social:** Heart, User, Users, MessageCircle
-**Media:** Camera, Image, Play, Music, Mic
-**Actions:** Plus, X, Check, Trash, Edit2, Share
-**Status:** Bell, Settings, Star, Bookmark, Flag
-**Misc:** ShoppingCart, Calendar, MapPin, Clock, Globe`;
-
-export const LINK_PATTERNS = `## Screen Navigation (State-Based)
-
-### Simple Navigation with State + Animated Transitions
+### Using useRouter Hook
 \`\`\`tsx
-// components/Navigator.tsx
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
-import { Animated, View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 
-interface NavigatorContextType {
-  currentScreen: string;
-  params: Record<string, string>;
-  navigate: (screen: string, params?: Record<string, string>) => void;
-  goBack: () => void;
-  canGoBack: boolean;
-}
+function HomeScreen() {
+  const router = useRouter();
 
-const NavigatorContext = createContext<NavigatorContextType | undefined>(undefined);
-
-export function useNavigator() {
-  const ctx = useContext(NavigatorContext);
-  if (!ctx) throw new Error('useNavigator must be used within NavigatorProvider');
-  return ctx;
-}
-
-interface NavigatorProviderProps {
-  initialScreen: string;
-  children: ReactNode;
-}
-
-export function NavigatorProvider({ initialScreen, children }: NavigatorProviderProps) {
-  const [history, setHistory] = useState<Array<{ screen: string; params: Record<string, string> }>>([
-    { screen: initialScreen, params: {} },
-  ]);
-
-  const current = history[history.length - 1];
-
-  const navigate = useCallback((screen: string, params: Record<string, string> = {}) => {
-    setHistory(prev => [...prev, { screen, params }]);
-  }, []);
-
-  const goBack = useCallback(() => {
-    setHistory(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
-  }, []);
-
-  return (
-    <NavigatorContext.Provider value={{
-      currentScreen: current.screen,
-      params: current.params,
-      navigate,
-      goBack,
-      canGoBack: history.length > 1,
-    }}>
-      {children}
-    </NavigatorContext.Provider>
-  );
-}
-\`\`\`
-
-### Rendering Screens with Fade Transition
-\`\`\`tsx
-// App.tsx
-import React, { useRef, useEffect, useState } from 'react';
-import { Animated, View, StyleSheet } from 'react-native';
-import { NavigatorProvider, useNavigator } from './components/Navigator';
-import HomeScreen from './screens/HomeScreen';
-import DetailsScreen from './screens/DetailsScreen';
-
-function ScreenRouter() {
-  const { currentScreen } = useNavigator();
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const [displayedScreen, setDisplayedScreen] = useState(currentScreen);
-
-  useEffect(() => {
-    if (currentScreen !== displayedScreen) {
-      // Fade out, swap screen, fade in
-      Animated.timing(fadeAnim, {
-        toValue: 0, duration: 120, useNativeDriver: true,
-      }).start(() => {
-        setDisplayedScreen(currentScreen);
-        Animated.timing(fadeAnim, {
-          toValue: 1, duration: 200, useNativeDriver: true,
-        }).start();
-      });
-    }
-  }, [currentScreen]);
-
-  const renderScreen = () => {
-    switch (displayedScreen) {
-      case 'home': return <HomeScreen />;
-      case 'details': return <DetailsScreen />;
-      default: return <HomeScreen />;
-    }
+  const handlePress = (id: string) => {
+    router.push(\`/details/\${id}\`);
   };
 
   return (
-    <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-      {renderScreen()}
-    </Animated.View>
-  );
-}
-
-export default function App() {
-  return (
-    <NavigatorProvider initialScreen="home">
-      <ScreenRouter />
-    </NavigatorProvider>
-  );
-}
-\`\`\`
-
-### Navigating Between Screens
-\`\`\`tsx
-import { useNavigator } from '../components/Navigator';
-
-function HomeScreen() {
-  const { navigate } = useNavigator();
-  
-  return (
-    <Pressable onPress={() => navigate('details', { id: '123' })}>
+    <Pressable onPress={() => handlePress('123')}>
       <Text>View Details</Text>
     </Pressable>
   );
 }
+\`\`\`
 
-function DetailsScreen() {
-  const { params, goBack, canGoBack } = useNavigator();
-  
+### Reading URL Parameters
+\`\`\`tsx
+// app/details/[id].tsx
+import { useLocalSearchParams } from 'expo-router';
+
+export default function DetailsScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+
   return (
-    <View>
-      {canGoBack && (
-        <Pressable onPress={goBack}>
-          <ArrowLeft size={24} color="#fff" />
-        </Pressable>
-      )}
-      <Text>Detail ID: {params.id}</Text>
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+      <Text style={{ color: '#fff' }}>Detail ID: {id}</Text>
     </View>
   );
 }
+\`\`\`
+
+### Going Back
+\`\`\`tsx
+import { useRouter } from 'expo-router';
+
+const router = useRouter();
+router.back(); // Go back to previous screen
 \`\`\``;
 
-export const STACK_NAVIGATION = `## Stack-Style Navigation Headers
+export const STACK_NAVIGATION = `## Stack Navigation
 
-### Custom Header Component
+### Root Layout with Stack
 \`\`\`tsx
-// components/ScreenHeader.tsx
-import React, { ReactNode } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+// app/_layout.tsx
+import { Stack } from 'expo-router/stack';
 
-interface ScreenHeaderProps {
-  title: string;
-  onBack?: () => void;
-  showBack?: boolean;
-  rightAction?: ReactNode;
-}
-
-export default function ScreenHeader({ title, onBack, showBack, rightAction }: ScreenHeaderProps) {
+export default function RootLayout() {
   return (
-    <View style={styles.header}>
-      <View style={styles.headerLeft}>
-        {showBack && onBack && (
-          <Pressable onPress={onBack} style={styles.backButton}>
-            <ChevronLeft size={24} color="#007AFF" />
-          </Pressable>
-        )}
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: '#0a0a0a' },
+        headerTintColor: '#fff',
+        headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: '#0a0a0a' },
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="details/[id]" options={{ title: 'Details' }} />
+      <Stack.Screen
+        name="modal"
+        options={{
+          presentation: 'modal',
+          title: 'Create New',
+        }}
+      />
+    </Stack>
+  );
+}
+\`\`\`
+
+### Setting Screen Options Dynamically
+\`\`\`tsx
+// app/details/[id].tsx
+import { Stack } from 'expo-router/stack';
+
+export default function DetailsScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  return (
+    <>
+      <Stack.Screen options={{ title: \`Item \${id}\` }} />
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ padding: 16 }}
+      >
+        {/* Content */}
+      </ScrollView>
+    </>
+  );
+}
+\`\`\`
+
+### Header with Right Action
+\`\`\`tsx
+<Stack.Screen
+  options={{
+    title: 'Profile',
+    headerRight: () => (
+      <Pressable onPress={handleEdit}>
+        <Ionicons name="create-outline" size={22} color="#007AFF" />
+      </Pressable>
+    ),
+  }}
+/>
+\`\`\``;
+
+export const MODALS_AND_SHEETS = `## Modals and Sheets
+
+### Modal Presentation (via expo-router)
+\`\`\`tsx
+// In _layout.tsx
+<Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+
+// app/modal.tsx
+import { useRouter } from 'expo-router';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+
+export default function ModalScreen() {
+  const router = useRouter();
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+        <Text style={styles.title}>Create New</Text>
+        <Pressable onPress={handleSave}>
+          <Text style={styles.saveText}>Save</Text>
+        </Pressable>
       </View>
-      <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-      <View style={styles.headerRight}>
-        {rightAction}
-      </View>
+      {/* Modal content */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#1c1c1e' },
   header: {
-    height: 56,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: '#0a0a0a',
+    alignItems: 'center',
+    padding: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#38383a',
   },
-  headerLeft: { width: 60, alignItems: 'flex-start' },
-  headerRight: { width: 60, alignItems: 'flex-end' },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  backButton: { padding: 4 },
+  title: { fontSize: 17, fontWeight: '600', color: '#fff' },
+  cancelText: { fontSize: 17, color: '#007AFF' },
+  saveText: { fontSize: 17, fontWeight: '600', color: '#007AFF' },
 });
 \`\`\`
 
-### Using ScreenHeader in a Screen
+### Form Sheet (iOS)
 \`\`\`tsx
-import ScreenHeader from '../components/ScreenHeader';
-import { useNavigator } from '../components/Navigator';
-import { Edit2 } from 'lucide-react-native';
-
-export default function DetailsScreen() {
-  const { goBack, canGoBack, params } = useNavigator();
-  
-  return (
-    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-      <ScreenHeader 
-        title="Details" 
-        showBack={canGoBack}
-        onBack={goBack}
-        rightAction={
-          <Pressable onPress={handleEdit}>
-            <Edit2 size={22} color="#007AFF" />
-          </Pressable>
-        }
-      />
-      <ScrollView style={{ flex: 1 }}>
-        {/* Screen content */}
-      </ScrollView>
-    </View>
-  );
-}
+// In _layout.tsx — presents as a draggable sheet on iOS
+<Stack.Screen
+  name="sheet"
+  options={{
+    presentation: 'formSheet',
+    sheetGrabberVisible: true,
+    sheetAllowedDetents: [0.5, 1.0],
+  }}
+/>
 \`\`\``;
 
-export const MODALS_AND_SHEETS = `## Modals (Custom)
+export const ROUTE_STRUCTURE = `## Project Structure for expo-router
 
-### Modal Component
-\`\`\`tsx
-// components/Modal.tsx
-import React, { ReactNode } from 'react';
-import { View, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
-
-interface ModalProps {
-  visible: boolean;
-  onClose: () => void;
-  children: ReactNode;
-  transparent?: boolean;
-}
-
-export default function Modal({ visible, onClose, children, transparent }: ModalProps) {
-  if (!visible) return null;
-
-  return (
-    <View style={[StyleSheet.absoluteFillObject, styles.overlay]}>
-      <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
-      <View style={[styles.content, transparent && styles.transparentContent]}>
-        {children}
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  overlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  content: {
-    backgroundColor: '#1c1c1e',
-    borderRadius: 16,
-    padding: 24,
-    width: '85%',
-    maxHeight: '80%',
-  },
-  transparentContent: {
-    backgroundColor: 'transparent',
-  },
-});
+### Standard App with Tabs + Stack
 \`\`\`
-
-### Using Modals
-\`\`\`tsx
-const [showModal, setShowModal] = useState(false);
-
-<Modal visible={showModal} onClose={() => setShowModal(false)}>
-  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>Create New</Text>
-  {/* Modal content */}
-  <Pressable onPress={() => setShowModal(false)}>
-    <Text style={{ color: '#007AFF' }}>Cancel</Text>
-  </Pressable>
-</Modal>
-\`\`\``;
-
-export const ROUTE_STRUCTURE = `## Project Structure for State-Based Routing
-
-### Standard App with Tabs
-\`\`\`
-App.tsx                 — Root entry point, renders TabNavigator or NavigatorProvider
+App.tsx                        — Entry point (re-exports expo-router entry)
+app/
+  _layout.tsx                  — Root Stack layout
+  (tabs)/
+    _layout.tsx                — Tab layout (Tabs component)
+    index.tsx                  — Home tab (/)
+    explore.tsx                — Explore tab
+    profile.tsx                — Profile tab
+  details/
+    [id].tsx                   — Detail screen (/details/123)
+  modal.tsx                    — Modal screen
+  +not-found.tsx               — 404 screen
 components/
-  TabNavigator.tsx      — Tab bar component
-  Navigator.tsx         — State-based navigation context
-  ScreenHeader.tsx      — Header with back button
-  Modal.tsx             — Custom modal
-screens/
-  HomeScreen.tsx        — Home tab screen
-  ExploreScreen.tsx     — Explore tab screen
-  ProfileScreen.tsx     — Profile tab screen
-  DetailsScreen.tsx     — Detail screen (navigated from any tab)
+  card.tsx                     — Reusable card component
+  avatar.tsx                   — Avatar component
+  search-bar.tsx               — Search input
 hooks/
-  useApi.ts             — Data fetching hook
+  use-api.ts                   — Data fetching hook
+  use-stored-state.ts          — Persistent state hook
 utils/
-  helpers.ts            — Utility functions
+  helpers.ts                   — Utility functions
 constants/
-  colors.ts             — Color palette
-  index.ts              — App constants
+  colors.ts                    — Color palette
+  index.ts                     — App constants
 types/
-  index.ts              — TypeScript types
+  index.ts                     — TypeScript types
 \`\`\`
 
-### IMPORTANT: NO expo-router
-- Do NOT use \`expo-router\`, \`Stack\`, \`Tabs\`, \`Link\` from expo-router
-- Do NOT create an \`app/\` directory with file-based routing
-- Put screens in \`screens/\` directory, components in \`components/\`
-- Use the state-based navigation pattern shown above
-- Always have an \`App.tsx\` as the entry point`;
+### Route Rules
+- Routes belong in the \`app/\` directory only
+- Never co-locate components/utils in the app directory
+- Use layout groups \`(groupName)/\` to organize related routes
+- Dynamic routes use \`[param].tsx\` syntax
+- Catch-all routes use \`[...param].tsx\`
+- \`_layout.tsx\` defines navigation structure (Stack, Tabs)
+- Always have a route that matches "/" (usually \`app/(tabs)/index.tsx\`)
+- Use \`+not-found.tsx\` for 404 handling`;
 
-export const NAVIGATION_HOOKS = `## Navigation Patterns
+export const NAVIGATION_HOOKS = `## Navigation Hooks & Patterns
 
-### useNavigator Hook (from components/Navigator.tsx)
+### expo-router Hooks
 \`\`\`tsx
-import { useNavigator } from '../components/Navigator';
+import { useRouter, useLocalSearchParams, usePathname, useSegments } from 'expo-router';
 
-const { currentScreen, params, navigate, goBack, canGoBack } = useNavigator();
+// Navigate programmatically
+const router = useRouter();
+router.push('/details/123');        // Push new screen
+router.replace('/login');           // Replace current screen
+router.back();                      // Go back
+router.dismissAll();                // Dismiss all modals
 
-navigate('details', { id: '123' });   // Navigate to screen with params
-goBack();                               // Go back to previous screen
-canGoBack;                              // Boolean: true if history has previous entries
-params.id;                              // Access route params
-currentScreen;                          // Current screen name
+// Read URL params
+const { id } = useLocalSearchParams<{ id: string }>();
+
+// Get current path
+const pathname = usePathname();  // e.g. '/details/123'
 \`\`\`
 
-### Tabs + Detail Navigation Pattern
+### Tab + Detail Navigation Pattern
 \`\`\`tsx
-// App.tsx — Combined tabs + detail navigation
-import React, { useState } from 'react';
-import { NavigatorProvider, useNavigator } from './components/Navigator';
-import TabNavigator from './components/TabNavigator';
-import DetailsScreen from './screens/DetailsScreen';
-import HomeScreen from './screens/HomeScreen';
-import ExploreScreen from './screens/ExploreScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import { Home, Compass, User } from 'lucide-react-native';
+// app/_layout.tsx
+import { Stack } from 'expo-router/stack';
 
-function MainApp() {
-  const { currentScreen } = useNavigator();
-
-  // If we're on a detail screen, show it (pushed on top of tabs)
-  if (currentScreen === 'details') {
-    return <DetailsScreen />;
-  }
-
-  // Otherwise show tabs
-  const tabs = [
-    { key: 'home', title: 'Home', icon: Home, component: HomeScreen },
-    { key: 'explore', title: 'Explore', icon: Compass, component: ExploreScreen },
-    { key: 'profile', title: 'Profile', icon: User, component: ProfileScreen },
-  ];
-
-  return <TabNavigator tabs={tabs} />;
-}
-
-export default function App() {
+export default function RootLayout() {
   return (
-    <NavigatorProvider initialScreen="home">
-      <MainApp />
-    </NavigatorProvider>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="details/[id]"
+        options={{
+          headerShown: true,
+          headerStyle: { backgroundColor: '#0a0a0a' },
+          headerTintColor: '#fff',
+          title: 'Details',
+        }}
+      />
+    </Stack>
   );
 }
-\`\`\``;
+\`\`\`
+
+### Deep Linking
+expo-router automatically generates deep links from your file structure:
+- \`app/(tabs)/index.tsx\` → \`/\`
+- \`app/(tabs)/profile.tsx\` → \`/profile\`
+- \`app/details/[id].tsx\` → \`/details/123\`
+- \`app/modal.tsx\` → \`/modal\``;

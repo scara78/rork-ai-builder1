@@ -33,19 +33,21 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 4. Editor picks up prompt from sessionStorage → passes as `initialPrompt` to `ChatPanel`
 5. ChatPanel auto-sends prompt to AI agent after 800ms delay (via `useRef` pattern, NOT `useCallback`)
 
-### Preview Panel
-- Uses a Serverless \`esbuild\` API route (\`/api/projects/[id]/bundle\`) to compile the project to React Native Web
-- Displays the compiled HTML inside an iframe
-- Features "Fix with AI" functionality: build/runtime errors are caught and can be automatically fixed by the agent
-- \`isGenerating\` is wired to \`agentStore.isRunning\` (not projectStore)
-- Files apply immediately via \`addGeneratingFile()\` as each SSE event arrives — real-time preview updates
+### Preview Panel (Expo Snack SDK)
+- Uses **Expo Snack SDK** (`snack-sdk@6.6.0`) to run real Expo code in an iframe (web preview) and on devices via QR code
+- `useSnack` hook (`apps/web/src/hooks/useSnack.ts`) manages the Snack session — creates instance, goes online, provides `webPreviewRef`, `webPreviewURL`, `expoURL`, `isBusy`, `connectedClients`
+- `SnackPreview` component (`apps/web/src/components/editor/SnackPreview.tsx`) renders the iframe and handles runtime errors + "Fix with AI"
+- Editor page wires `project-files-changed` events to `snack.updateFiles()` — files push to Snack in real-time as AI generates them
+- Initial project files are synced to Snack on load via `snackSetAllFiles()`
+- `isGenerating` is wired to `agentStore.isRunning` (not projectStore)
+- Files apply immediately via `addGeneratingFile()` as each SSE event arrives — real-time preview updates
 
 ### AI Agent Pipeline
 - **Gemini path**: `GeminiProvider.streamCode()` — uses `write_file` tool declaration, multi-turn tool loop (up to 20 rounds), yields file events via SSE
 - **Claude path**: `RorkAgent` with 11 tools (create_plan, write_file, patch_file, search_files, verify_project, delete_file, read_file, list_files, run_test, fix_error, complete)
 - System prompt is assembled from 5 modules in `packages/ai-engine/src/prompts/`: `expo-sdk54.ts`, `navigation.ts`, `styling.ts`, `components.ts`, `expo-knowledge.ts`
-- All prompts target a Web-compatible environment using `lucide-react-native` and `@react-three/fiber` (Rork Max 3D/AR capabilities).
-- `expo-router` is banned; state-based navigation is used.
+- All prompts target real Expo SDK 52 code: `expo-router` (file-based routing), `@expo/vector-icons` (Ionicons), `react-native-reanimated`, `react-native-safe-area-context`, `expo-image`, `expo-blur`, `expo-haptics`, `AsyncStorage`, CSS `boxShadow`
+- `@react-three/fiber` for 3D graphics (Rork Max capability)
 
 ### State Management
 - `projectStore` (Zustand + Immer): files, messages, activeFile, isGenerating, selectedModel
@@ -108,10 +110,24 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - Agent prompt quality: contradictions removed, missing patterns added, Snack allowlist added
 - Error visibility improved (actual error message shown in chat)
 - Unused imports cleaned up across all components
-- Build passes: 0 errors, 0 TS errors, all 19 routes compile
-- **Preview Stability**: Replaced Expo Snack SDK (which crashed browsers and had unresolved dependency loops) with a Vercel serverless `esbuild` pipeline + `importmap` + `esm.sh` CDN.
-- **Rork Max capabilities**: Upgraded AI persona and prompts to support `@react-three/fiber` for 3D games and web AR natively.
-- **Fix with AI**: Catch `esbuild` parsing errors and React runtime errors inside the iframe, displaying them natively with a button that auto-prompts the AI to fix it.
+- Build passes: 0 errors, 0 TS errors, all 17 routes compile
+- **Expo Snack SDK Migration**: Replaced esbuild bundler with Expo Snack SDK for live preview — supports web preview (iframe) AND real device testing via QR code
+  - Created `useSnack` hook and `SnackPreview` component
+  - Wired editor page to push files to Snack on load and on every AI file update
+  - Removed old esbuild bundler (bundler.ts, LivePreview.tsx, /api/bundle, /api/stub routes, esbuild dependency)
+- **AI Prompts Rewritten for Real Expo**: All 6 prompt files completely rewritten to generate real Expo code instead of esbuild/web-only code:
+  - expo-router file-based routing (was: custom state-based Navigator)
+  - @expo/vector-icons Ionicons (was: lucide-react-native)
+  - react-native-reanimated with entering/exiting animations (was: Animated from RN only)
+  - react-native-safe-area-context (was: constant padding)
+  - expo-image with blurhash (was: RN Image)
+  - expo-blur BlurView (was: semi-transparent bg workaround)
+  - expo-haptics with Platform.OS guard (was: not available)
+  - AsyncStorage (was: localStorage wrapper)
+  - CSS boxShadow (was: legacy RN shadow props)
+  - expo-status-bar, expo-linear-gradient (was: not available)
+- **Rork Max capabilities**: `@react-three/fiber` for 3D games and web AR natively.
+- **Fix with AI**: Catch runtime errors inside the Snack iframe, displaying them with a button that auto-prompts the AI to fix it.
 - Gemini text streaming fixed — text now yields incrementally during the loop (not buffered until end)
 - CodePanel close-tab now actually closes tabs (tracks `openTabs` state, not all files)
 - agentStore text_delta now appends to existing message instead of creating unbounded new messages
@@ -124,9 +140,11 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 
 - **Live site works end-to-end**: Landing prompt → signup → project created → editor → AI agent builds app → preview shows result
 - **Default model**: Gemini 3.1 Pro Preview
-- **Preview fixed**: Replaced buggy Expo Snack SDK with a robust serverless `esbuild` implementation, matching lovable-clone architecture.
-- **Rork Max Upgrade**: Added support for 3D Games/AR via `@react-three/fiber` and updated AI persona.
-- **Latest tested**: Build passes, type-check passes, all 19 routes compile
+- **Preview**: Expo Snack SDK powers live preview (web iframe + QR code for real device testing via Expo Go)
+- **AI Prompts**: Fully rewritten for real Expo code — expo-router, @expo/vector-icons, reanimated, safe-area-context, expo-image, expo-blur, expo-haptics, AsyncStorage, CSS boxShadow
+- **Old esbuild bundler removed**: LivePreview, bundler.ts, /api/bundle, /api/stub all deleted
+- **Rork Max Upgrade**: 3D Games/AR via `@react-three/fiber` and updated AI persona
+- **Latest tested**: Build passes, type-check passes, all 17 routes compile
 
 ## Remaining Work (Not Started)
 
@@ -134,7 +152,8 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - Configure OAuth providers (Google/GitHub) in Supabase dashboard (user action)
 - Add `ANTHROPIC_API_KEY` to Vercel for Claude model support (user action)
 - Add conversation persistence — reload editor should restore chat history from DB
-- Test Snack Preview with complex AI-generated apps on production to confirm fix works end-to-end
+- Test Snack SDK preview end-to-end on production with AI-generated Expo apps
+- Consider upgrading useSnack to handle `package.json` dependencies from AI output (parse package.json → call `snack.updateDependencies()`)
 
 ---
 
@@ -154,7 +173,9 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 
 ### Core Components
 - `apps/web/src/components/editor/ChatPanel.tsx` — chat + agent SSE streaming + auto-send
-- `apps/web/src/components/editor/PreviewPanel.tsx` — Snack SDK Expo preview
+- `apps/web/src/components/editor/PreviewPanel.tsx` — preview container with device frame + Snack status
+- `apps/web/src/components/editor/SnackPreview.tsx` — Snack iframe + runtime error handling + Fix with AI
+- `apps/web/src/hooks/useSnack.ts` — Snack SDK session management hook
 - `apps/web/src/components/landing/HeroPromptBox.tsx` — landing prompt box
 - `apps/web/src/components/dashboard/PendingPromptHandler.tsx` — auto-creates project from saved prompt
 
