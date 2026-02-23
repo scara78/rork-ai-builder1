@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { Loader2, RefreshCw, AlertCircle, FileCode2, Check, Smartphone, Tablet, Sparkles, Wand2 } from 'lucide-react';
+import { useState } from 'react';
+import { RefreshCw, Smartphone, Tablet, ExternalLink } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { useAgentStore } from '@/stores/agentStore';
+import { LivePreview } from './LivePreview';
+import { ConsolePanel } from './ConsolePanel';
 
 interface PreviewPanelProps {
   projectId: string;
@@ -12,7 +14,7 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: PreviewPanelProps) {
-  const { files, generatingFiles, addRuntimeError, clearRuntimeErrors } = useProjectStore();
+  const { files, generatingFiles } = useProjectStore();
   const { isRunning: isAgentRunning } = useAgentStore();
 
   const isGenerating = isAgentRunning;
@@ -20,62 +22,23 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
 
   const [deviceSize, setDeviceSize] = useState<'phone' | 'tablet'>('phone');
   const [refreshKey, setRefreshKey] = useState(0);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
-  const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Bundle URL using the Next.js API route that runs esbuild
-  const bundleUrl = `/api/projects/${projectId}/bundle?t=${refreshKey}`;
-
-  const handleRefresh = useCallback(() => {
-    setIframeLoaded(false);
-    setRuntimeError(null);
-    clearRuntimeErrors();
+  const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
-  }, [clearRuntimeErrors]);
-
-  // Receive runtime errors from iframe (injected by our bundler)
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      const data = e.data;
-      if (!data || typeof data !== 'object') return;
-      if (data.source === 'rork-preview' && data.type === 'preview-error') {
-        const msg = [data.message, data.stack].filter(Boolean).join('\\n');
-        setRuntimeError(msg || 'Runtime error');
-        addRuntimeError(msg || 'Runtime error');
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [addRuntimeError]);
-
-  // When AI stops generating, automatically refresh the preview to load latest files
-  const previousGeneratingRef = useRef(isGenerating);
-  useEffect(() => {
-    if (previousGeneratingRef.current === true && isGenerating === false && hasRealFiles) {
-      // Small delay to ensure all DB writes are finished
-      const timer = setTimeout(() => {
-        handleRefresh();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-    previousGeneratingRef.current = isGenerating;
-  }, [isGenerating, hasRealFiles, handleRefresh]);
-
-  // When a specific file (not during full generation loop) changes, we can reload
-  // However, relying on the 'isGenerating' transition is safer for bulk updates.
-  // We'll trust the user to press Refresh or the auto-refresh above.
+  };
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#1a1a1d]">
+    <div className="h-full w-full flex flex-col bg-[#1a1a1d] relative pb-10">
       {/* Top bar with status + controls */}
-      <div className="h-10 flex items-center justify-between px-3 border-b border-[#27272a] bg-[#0f0f11] flex-shrink-0">
+      <div className="h-10 flex items-center justify-between px-3 border-b border-[#27272a] bg-[#0f0f11] flex-shrink-0 relative z-10">
         <div className="flex items-center gap-2">
           {/* Status */}
           {isGenerating ? (
             <div className="flex items-center gap-1.5">
-              <Loader2 size={12} className="animate-spin text-blue-400" />
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+              </span>
               <span className="text-blue-400 font-medium text-xs">Building</span>
             </div>
           ) : !hasRealFiles ? (
@@ -83,22 +46,9 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
               <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
               <span className="text-gray-500 font-medium text-xs">Waiting</span>
             </div>
-          ) : !iframeLoaded ? (
-            <div className="flex items-center gap-1.5">
-              <Loader2 size={12} className="animate-spin text-yellow-400" />
-              <span className="text-yellow-400 font-medium text-xs">Loading preview</span>
-            </div>
-          ) : runtimeError ? (
-            <div className="flex items-center gap-1.5">
-              <AlertCircle size={12} className="text-red-400" />
-              <span className="text-red-400 font-medium text-xs">Error</span>
-            </div>
           ) : (
             <div className="flex items-center gap-1.5">
-              <div className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-              </div>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
               <span className="text-green-400 font-medium text-xs">Live</span>
             </div>
           )}
@@ -113,156 +63,80 @@ export function PreviewPanel({ projectId, onExpoURLChange, onDevicesChange }: Pr
           >
             <RefreshCw size={13} />
           </button>
+          <div className="w-px h-4 bg-[#27272a] mx-1" />
           {/* Device type icons */}
           <button
             onClick={() => setDeviceSize('phone')}
-        className={`p-1.5 rounded-md transition-colors ${deviceSize === 'phone' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+            className={`p-1.5 rounded-md transition-colors ${deviceSize === 'phone' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
             title="Phone"
           >
             <Smartphone size={13} />
           </button>
           <button
             onClick={() => setDeviceSize('tablet')}
-        className={`p-1.5 rounded-md transition-colors ${deviceSize === 'tablet' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+            className={`p-1.5 rounded-md transition-colors ${deviceSize === 'tablet' ? 'text-white bg-white/10' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
             title="Tablet"
           >
             <Tablet size={13} />
+          </button>
+          <button
+            onClick={() => window.open(`/api/projects/${projectId}/bundle`, '_blank')}
+            className="p-1.5 text-gray-500 hover:text-white transition-colors rounded-md hover:bg-white/5 ml-1"
+            title="Open in new tab"
+          >
+            <ExternalLink size={13} />
           </button>
         </div>
       </div>
 
       {/* Preview Area */}
-      <div className="flex-1 flex items-center justify-center relative overflow-hidden">
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px]">
         {/* Device Frame - phone or tablet */}
         <div
-          className={`relative bg-black border-[3px] border-[#333] shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-10 ${
+          className={`relative bg-black border-[4px] border-[#333] shadow-[0_0_60px_-15px_rgba(0,0,0,0.6)] overflow-hidden z-10 transition-all duration-300 ease-in-out ${
             deviceSize === 'tablet'
               ? 'w-[580px] h-[760px] rounded-[24px]'
               : 'w-[320px] h-[693px] rounded-[40px]'
           }`}
         >
+          {/* Hardware elements */}
+          {deviceSize === 'phone' && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-[26px] bg-black rounded-b-3xl z-50 flex justify-center items-end pb-1.5">
+              <div className="w-12 h-1.5 rounded-full bg-[#222]" />
+            </div>
+          )}
+          
           <div
             className={`absolute inset-0 bg-[#0a0a0a] overflow-hidden ${
-              deviceSize === 'tablet' ? 'rounded-[21px]' : 'rounded-[37px]'
+              deviceSize === 'tablet' ? 'rounded-[20px]' : 'rounded-[36px]'
             }`}
           >
-            {/* The actual preview iframe powered by esbuild */}
-            {hasRealFiles && (
-              <iframe
-                ref={iframeRef}
-                key={bundleUrl}
-                src={bundleUrl}
-                onLoad={() => setIframeLoaded(true)}
-                className="w-full h-full border-0 bg-[#0a0a0a]"
-                title="Rork Preview"
-                allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; payment; usb; xr-spatial-tracking; screen-wake-lock"
-                sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"
-              />
-            )}
-
-            {/* Overlays */}
-            
-            {/* Runtime Error Overlay */}
-            {runtimeError && iframeLoaded && !isGenerating && (
-              <div className="absolute inset-0 z-40 bg-red-950/95 flex flex-col p-6 overflow-hidden">
-                <div className="flex items-center gap-2 mb-4 text-red-400">
-                  <AlertCircle className="w-5 h-5" />
-                  <h3 className="font-semibold text-sm">Preview Error</h3>
-                </div>
-                <pre className="text-red-300 text-[11px] whitespace-pre-wrap font-mono bg-black/40 p-4 rounded-lg flex-1 overflow-auto">
-                  {runtimeError}
-                </pre>
-                <div className="mt-4 flex gap-3">
-                  <button
-                    onClick={handleRefresh}
-                    className="flex-1 py-2.5 bg-red-500/20 text-red-200 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <RefreshCw size={16} />
-                    Reload
-                  </button>
-                  <button
-                    onClick={() => {
-                      const event = new CustomEvent('send-to-ai', { 
-                        detail: { message: `I'm getting this build/runtime error:\n\n${runtimeError}\n\nPlease analyze the root cause and fix it.` } 
-                      });
-                      window.dispatchEvent(event);
-                    }}
-                    className="flex-1 py-2.5 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-900/20"
-                  >
-                    <Wand2 size={16} />
-                    Fix with AI
-                  </button>
-                </div>
-              </div>
-            )}
+            <LivePreview 
+              key={refreshKey}
+              projectId={projectId}
+              className="w-full h-full bg-[#0a0a0a]"
+            />
 
             {/* Building overlay */}
-            {isGenerating && (
-              <div className="absolute inset-0 z-30 flex flex-col bg-[#0a0a0a]">
-                <div className="flex-1 flex flex-col items-center justify-center px-6">
-                  <div className="relative mb-5">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-                      <FileCode2 className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 opacity-30 animate-ping" />
+            {isGenerating && generatingFiles.length > 0 && (
+              <div className="absolute top-4 right-4 z-40 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 flex flex-col gap-1.5 shadow-xl pointer-events-none">
+                <div className="flex items-center gap-2 text-xs font-medium text-white mb-1">
+                  <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
+                  Building updates...
+                </div>
+                {generatingFiles.slice(-3).map((f) => (
+                  <div key={f} className="text-[10px] text-gray-400 font-mono truncate max-w-[140px]">
+                    {f}
                   </div>
-
-                  <p className="text-white font-semibold text-sm mb-1">Building your app...</p>
-                  <p className="text-gray-500 text-xs mb-5">Rork is writing code...</p>
-
-                  {generatingFiles.length > 0 && (
-                    <div className="w-full max-w-[240px] space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar">
-                      {generatingFiles.map((filePath) => (
-                        <div key={filePath} className="flex items-center gap-2 text-xs animate-fade-in">
-                          <Check className="w-3 h-3 text-green-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate font-mono">{filePath}</span>
-                        </div>
-                      ))}
-                      <div className="flex items-center gap-2 text-xs">
-                        <Loader2 className="w-3 h-3 text-blue-400 animate-spin flex-shrink-0" />
-                        <span className="text-gray-500">writing...</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {generatingFiles.length === 0 && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Analyzing your request...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Empty state */}
-            {!isGenerating && !hasRealFiles && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0a0a0a]">
-                <div className="text-center text-gray-500 px-6">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-600/20 flex items-center justify-center mx-auto mb-4 border border-white/5">
-                    <Sparkles className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <p className="text-sm font-medium text-gray-300">No app yet</p>
-                  <p className="text-xs mt-2 text-gray-500 leading-relaxed max-w-[200px] mx-auto">
-                    Describe what you want to build in the chat and Rork will generate it here.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Loading overlay */}
-            {!isGenerating && hasRealFiles && !iframeLoaded && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0a0a0a]">
-                <div className="text-center text-gray-500 px-6">
-                  <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-gray-400" />
-                  <p className="text-sm font-medium text-gray-300">Loading preview...</p>
-                  <p className="text-xs mt-1 text-gray-500">Bundling files</p>
-                </div>
+                ))}
               </div>
             )}
           </div>
         </div>
       </div>
+      
+      {/* Console Panel at the bottom */}
+      <ConsolePanel />
     </div>
   );
 }

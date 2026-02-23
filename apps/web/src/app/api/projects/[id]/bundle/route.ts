@@ -1,5 +1,6 @@
 import { bundleProject } from '@/lib/bundler';
 import { NextRequest } from 'next/server';
+import { ensureScaffold } from '@/lib/scaffold';
 
 export const runtime = 'nodejs';
 
@@ -16,6 +17,9 @@ export async function GET(
     const url = new URL(request.url);
     const queryToken = url.searchParams.get('token') || undefined;
     const accessToken = headerToken || queryToken;
+
+    // Ensure App.tsx exists before bundling
+    await ensureScaffold(projectId, accessToken || undefined);
 
     // Bundle the project directly using our custom esbuild + virtual-fs logic
     const html = await bundleProject({ 

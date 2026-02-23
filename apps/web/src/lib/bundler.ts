@@ -75,6 +75,12 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
       parent.postMessage({ source:'rork-preview', type, message: String(message||''), stack: stack?String(stack):'' }, '*');
     } catch(e){}
   }
+  function sendConsole(type, args) {
+    try {
+      const msg = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+      parent.postMessage({ source: 'rork-preview-console', type, message: msg }, '*');
+    } catch(e) {}
+  }
   window.addEventListener('error', function(e){
     send('preview-error', (e && (e.error && e.error.message)) || (e && e.message) || 'Runtime error', (e && e.error && e.error.stack) || '');
   });
@@ -82,6 +88,14 @@ export async function bundleProject(options: BundleOptions): Promise<string> {
     var reason = e && e.reason;
     send('preview-error', (reason && reason.message) || String(reason) || 'Unhandled rejection', (reason && reason.stack) || '');
   });
+  const originalLog = console.log;
+  const originalInfo = console.info;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  console.log = function() { sendConsole('log', arguments); originalLog.apply(console, arguments); };
+  console.info = function() { sendConsole('info', arguments); originalInfo.apply(console, arguments); };
+  console.warn = function() { sendConsole('warn', arguments); originalWarn.apply(console, arguments); };
+  console.error = function() { sendConsole('error', arguments); originalError.apply(console, arguments); };
 })();
 </script>`;
 
@@ -266,11 +280,11 @@ if (rootElement) {
       ::-webkit-scrollbar { display: none; }
       body { -ms-overflow-style: none; scrollbar-width: none; font-family: -apple-system, system-ui, sans-serif; }
     </style>
+    ${importMapScript}
   </head>
   <body>
     <div id="root"></div>
     ${errorReporterScript}
-    ${importMapScript}
     <script type="module">${jsCode}</script>
   </body>
 </html>`;
