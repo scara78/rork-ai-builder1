@@ -34,17 +34,18 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 5. ChatPanel auto-sends prompt to AI agent after 800ms delay (via `useRef` pattern, NOT `useCallback`)
 
 ### Preview Panel
-- Uses Expo Snack SDK to render a phone-sized web preview
-- Loads web player from S3 (`snack-web-player.s3.us-west-1.amazonaws.com`)
-- Has CONNECT message replay logic to handle race conditions with iframe loading
-- `isGenerating` is wired to `agentStore.isRunning` (not projectStore)
-- Files apply immediately via `addGeneratingFile()` as each SSE event arrives — real-time preview updates
+- Uses a Serverless \`esbuild\` API route (\`/api/projects/[id]/bundle\`) to compile the project to React Native Web
+- Displays the compiled HTML inside an iframe
+- Features "Fix with AI" functionality: build/runtime errors are caught and can be automatically fixed by the agent
+- \`isGenerating\` is wired to \`agentStore.isRunning\` (not projectStore)
+- Files apply immediately via \`addGeneratingFile()\` as each SSE event arrives — real-time preview updates
 
 ### AI Agent Pipeline
 - **Gemini path**: `GeminiProvider.streamCode()` — uses `write_file` tool declaration, multi-turn tool loop (up to 20 rounds), yields file events via SSE
 - **Claude path**: `RorkAgent` with 11 tools (create_plan, write_file, patch_file, search_files, verify_project, delete_file, read_file, list_files, run_test, fix_error, complete)
 - System prompt is assembled from 5 modules in `packages/ai-engine/src/prompts/`: `expo-sdk54.ts`, `navigation.ts`, `styling.ts`, `components.ts`, `expo-knowledge.ts`
-- All prompts target Expo Snack SDK 54 — formSheet/expo-symbols/SymbolView are BANNED (don't re-add them)
+- All prompts target a Web-compatible environment using `lucide-react-native` and `@react-three/fiber` (Rork Max 3D/AR capabilities).
+- `expo-router` is banned; state-based navigation is used.
 
 ### State Management
 - `projectStore` (Zustand + Immer): files, messages, activeFile, isGenerating, selectedModel
@@ -108,7 +109,9 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - Error visibility improved (actual error message shown in chat)
 - Unused imports cleaned up across all components
 - Build passes: 0 errors, 0 TS errors, all 19 routes compile
-- **Snack Preview "Connecting..." fixed** — two-phase dependency loading ensures isBusy()=false on initial render
+- **Preview Stability**: Replaced Expo Snack SDK (which crashed browsers and had unresolved dependency loops) with a Vercel serverless `esbuild` pipeline + `importmap` + `esm.sh` CDN.
+- **Rork Max capabilities**: Upgraded AI persona and prompts to support `@react-three/fiber` for 3D games and web AR natively.
+- **Fix with AI**: Catch `esbuild` parsing errors and React runtime errors inside the iframe, displaying them natively with a button that auto-prompts the AI to fix it.
 - Gemini text streaming fixed — text now yields incrementally during the loop (not buffered until end)
 - CodePanel close-tab now actually closes tabs (tracks `openTabs` state, not all files)
 - agentStore text_delta now appends to existing message instead of creating unbounded new messages
@@ -121,7 +124,8 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 
 - **Live site works end-to-end**: Landing prompt → signup → project created → editor → AI agent builds app → preview shows result
 - **Default model**: Gemini 3.1 Pro Preview
-- **Preview fixed**: Two-phase dep loading ensures Snack web player renders immediately
+- **Preview fixed**: Replaced buggy Expo Snack SDK with a robust serverless `esbuild` implementation, matching lovable-clone architecture.
+- **Rork Max Upgrade**: Added support for 3D Games/AR via `@react-three/fiber` and updated AI persona.
 - **Latest tested**: Build passes, type-check passes, all 19 routes compile
 
 ## Remaining Work (Not Started)

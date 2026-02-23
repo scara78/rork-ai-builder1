@@ -14,7 +14,9 @@ An AI-powered platform for building React Native mobile apps from natural langua
 ## Features
 
 - **AI Agent**: Autonomous app builder using Gemini 2.0 Flash (default) or Claude with multi-turn tool loop
-- **Live Preview**: Expo Snack SDK renders your app in a phone-sized iframe — updates in real-time as files are generated
+  - **Live Preview**: Serverless esbuild API compiles your app to React Native Web in a phone-sized iframe — updates in real-time as files are generated
+  - **Rork Max AI**: Upgraded AI persona that can generate 3D games and AR UI using `@react-three/fiber`
+  - **Fix with AI**: One-click automatic resolution of build and runtime errors
 - **Code Editor**: Monaco-based editor with syntax highlighting and file tree
 - **Command Palette**: Quick access to all features (`Cmd+K`)
 - **GitHub Sync**: Push your project to GitHub with one click
@@ -29,7 +31,7 @@ An AI-powered platform for building React Native mobile apps from natural langua
 - **Database**: Supabase (PostgreSQL)
 - **Auth**: Supabase Auth (SSR with proxy.ts)
 - **AI**: Gemini 2.0 Flash (default), Claude (optional)
-- **Preview**: Expo Snack SDK (in-browser, no separate server needed)
+- **Preview**: Serverless esbuild API route + React Native Web
 - **State**: Zustand + Immer (projectStore, agentStore)
 - **Build System**: Turborepo, pnpm workspaces
 
@@ -145,7 +147,7 @@ See `vercel.json` for full config.
 ## Acknowledgments
 
 - Inspired by [Rork](https://rork.com)
-- Built with [Expo](https://expo.dev) and [Snack SDK](https://github.com/expo/snack)
+- Built with [Expo](https://expo.dev) and [esbuild](https://esbuild.github.io)
 - AI powered by [Gemini](https://ai.google.dev) and [Claude](https://anthropic.com)
 
 ## License
