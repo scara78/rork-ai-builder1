@@ -22,6 +22,39 @@ function computeIsBusy(state: SnackState): boolean {
 const DEFAULT_SDK_VERSION = '52.0.0';
 
 /**
+ * Known-good dependency versions for Expo SDK 52 in the Snack environment.
+ * AI models frequently hallucinate wrong version numbers (e.g. expo-image@~4.0.0
+ * doesn't exist on Snackager and returns a 500 error). This map overrides
+ * whatever version the AI puts in package.json with a version Snackager can resolve.
+ */
+const SDK52_VERSION_MAP: Record<string, string> = {
+  'expo-image': '~2.0.0',
+  'expo-blur': '~14.0.0',
+  'expo-haptics': '~14.0.0',
+  'expo-linear-gradient': '~14.0.0',
+  'expo-status-bar': '~2.0.0',
+  'expo-constants': '~17.0.0',
+  'expo-font': '~13.0.0',
+  'expo-linking': '~7.0.0',
+  'expo-clipboard': '~7.0.0',
+  'expo-router': '~4.0.0',
+  '@expo/vector-icons': '*',
+  'react-native-safe-area-context': '*',
+  'react-native-reanimated': '*',
+  'react-native-gesture-handler': '*',
+  'react-native-screens': '*',
+  '@react-native-async-storage/async-storage': '~2.1.0',
+};
+
+/**
+ * Resolves a dependency version. If the package is in our known-good map,
+ * use the pinned version. Otherwise pass through the AI-provided version.
+ */
+function resolveVersion(name: string, aiVersion: string): string {
+  return SDK52_VERSION_MAP[name] ?? aiVersion;
+}
+
+/**
  * Parses a package.json content string and extracts dependencies as { name: version } pairs.
  */
 function parseDependencies(packageJsonContent: string): Record<string, string> {
@@ -168,7 +201,8 @@ const styles = StyleSheet.create({
       for (const [name, version] of Object.entries(depsToSync)) {
         // Skip react/react-native — they're always included
         if (name === 'react' || name === 'react-native' || name === 'react-dom') continue;
-        snackDeps[name] = { version };
+        // Use pinned SDK 52 version when available to avoid Snackager 500 errors
+        snackDeps[name] = { version: resolveVersion(name, version) };
       }
       if (Object.keys(snackDeps).length > 0) {
         snack.updateDependencies(snackDeps);
@@ -199,7 +233,7 @@ const styles = StyleSheet.create({
 
     const snackDeps: Record<string, { version: string }> = {};
     for (const [name, version] of Object.entries(deps)) {
-      snackDeps[name] = { version };
+      snackDeps[name] = { version: resolveVersion(name, version) };
     }
     snack.updateDependencies(snackDeps);
   }, []);

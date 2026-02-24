@@ -40,14 +40,15 @@ These packages are pre-loaded and resolve instantly:
 - expo-constants, expo-font
 
 ### Available Packages (Resolved by Snackager)
-These packages are available but need resolution (slight delay on first use):
-- expo-image
-- expo-blur
-- expo-haptics
-- expo-linear-gradient
-- expo-status-bar
-- expo-linking
-- expo-clipboard
+These packages are available but need resolution (slight delay on first use).
+**Use EXACTLY these versions in package.json — wrong versions cause build failures:**
+- expo-image@~2.0.0
+- expo-blur@~14.0.0
+- expo-haptics@~14.0.0
+- expo-linear-gradient@~14.0.0
+- expo-status-bar@~2.0.0
+- expo-linking@~7.0.0
+- expo-clipboard@~7.0.0
 
 ### Project Structure (expo-router file-based routing)
 \`\`\`

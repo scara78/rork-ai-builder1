@@ -300,26 +300,28 @@ function useStoredState<T>(key: string, defaultValue: T) {
 
 export const EXPO_CONTROLS = `## Package Rules (Expo Snack Environment)
 
-### Available Packages — USE THESE
-| Package | Notes |
-|---------|-------|
-| react, react-native | Core framework |
-| expo-router | File-based routing and navigation |
-| @expo/vector-icons | Icon families (Ionicons, MaterialIcons, FontAwesome, Feather) |
-| react-native-safe-area-context | Safe area insets |
-| react-native-reanimated | Smooth animations (UI thread) |
-| react-native-gesture-handler | Touch gestures |
-| @react-native-async-storage/async-storage | Persistent key-value storage |
-| expo-image | Fast image component with blurhash |
-| expo-blur | Native blur effects (BlurView) |
-| expo-haptics | Tactile feedback (iOS) |
-| expo-linear-gradient | Gradient backgrounds |
-| expo-status-bar | Status bar styling |
-| expo-constants | Device/app constants |
-| expo-font | Custom fonts |
-| expo-linking | URL handling |
-| expo-clipboard | Clipboard access |
-| three, @react-three/fiber, @react-three/drei | 3D graphics (web preview) |
+### Available Packages — USE THESE (with exact versions for SDK 52)
+| Package | Version in package.json | Notes |
+|---------|------------------------|-------|
+| react, react-native | (core, don't list) | Core framework |
+| expo-router | ~4.0.0 | File-based routing and navigation |
+| @expo/vector-icons | * | Icon families (Ionicons, MaterialIcons, FontAwesome, Feather) |
+| react-native-safe-area-context | * | Safe area insets |
+| react-native-reanimated | * | Smooth animations (UI thread) |
+| react-native-gesture-handler | * | Touch gestures |
+| @react-native-async-storage/async-storage | ~2.1.0 | Persistent key-value storage |
+| expo-image | ~2.0.0 | Fast image component with blurhash |
+| expo-blur | ~14.0.0 | Native blur effects (BlurView) |
+| expo-haptics | ~14.0.0 | Tactile feedback (iOS) |
+| expo-linear-gradient | ~14.0.0 | Gradient backgrounds |
+| expo-status-bar | ~2.0.0 | Status bar styling |
+| expo-constants | ~17.0.0 | Device/app constants |
+| expo-font | ~13.0.0 | Custom fonts |
+| expo-linking | ~7.0.0 | URL handling |
+| expo-clipboard | ~7.0.0 | Clipboard access |
+| three, @react-three/fiber, @react-three/drei | latest | 3D graphics (web preview) |
+
+**CRITICAL: Use EXACTLY the versions listed above in your package.json. Wrong versions (e.g. expo-image@~4.0.0) will cause Snackager 500 errors and the preview will not load.**
 
 ### BANNED Packages — DO NOT USE
 - **lucide-react-native** — use \`@expo/vector-icons\` (Ionicons) instead
