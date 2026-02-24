@@ -290,6 +290,7 @@ const styles = StyleSheet.create({
    * Resets retry counter so user-triggered retries get fresh attempts.
    */
   const goOnline = useCallback(() => {
+    console.log('[useSnack] goOnline() called');
     setHasRequestedOnline(true);
     setError(null);
     retryCountRef.current = 0;

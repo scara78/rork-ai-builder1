@@ -223,8 +223,12 @@ export default function EditorPage() {
       // If project has real files (not just App.tsx + package.json + tsconfig.json),
       // go online immediately so user sees the preview
       const fileCount = Object.keys(files).length;
+      console.log(`[EditorPage] Project loaded: ${fileCount} files`);
       if (fileCount > 3) {
+        console.log('[EditorPage] fileCount > 3, calling snackGoOnline()');
         snackGoOnline();
+      } else {
+        console.log('[EditorPage] fileCount <= 3, waiting for agent-build-complete');
       }
     }
     // Only run when loading transitions to false (project load complete)
@@ -250,6 +254,7 @@ export default function EditorPage() {
   // When the AI agent finishes building, go online so the preview connects
   useEffect(() => {
     const handler = () => {
+      console.log('[EditorPage] agent-build-complete event received, calling snackGoOnline()');
       snackGoOnline();
     };
     window.addEventListener('agent-build-complete', handler);
