@@ -151,8 +151,8 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 ## Remaining Work (Not Started)
 
 - Configure OAuth providers (Google/GitHub) in Supabase dashboard (user action)
-- Add `ANTHROPIC_API_KEY` to Vercel for Claude model support (user action)
 - Test Snack SDK preview end-to-end on production with AI-generated Expo apps
+- (Low priority / future) Add `ANTHROPIC_API_KEY` to Vercel for optional Claude model support — Gemini is the default and only active model
 
 ---
 
