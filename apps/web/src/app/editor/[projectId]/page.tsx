@@ -328,6 +328,7 @@ export default function EditorPage() {
               connectedClients={snackConnectedClients}
               snackError={snackError}
               hasRequestedOnline={snackHasRequestedOnline}
+              onRetryConnect={snackGoOnline}
             />
           ) : (
             <div className="flex h-full">

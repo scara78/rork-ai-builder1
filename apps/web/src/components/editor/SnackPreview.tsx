@@ -11,6 +11,7 @@ interface SnackPreviewProps {
   connectedClients: number;
   error: string | null;
   hasRequestedOnline: boolean;
+  onRetryConnect?: () => void;
   className?: string;
 }
 
@@ -22,6 +23,7 @@ export function SnackPreview({
   connectedClients,
   error: snackError,
   hasRequestedOnline,
+  onRetryConnect,
   className,
 }: SnackPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -191,9 +193,20 @@ export function SnackPreview({
                   {isOnline ? 'Online — waiting for web player' : 'Going online...'}
                 </p>
                 {connectingTooLong && (
-                  <p className="mt-3 text-xs text-yellow-500/80">
-                    Taking longer than expected. This usually means dependencies are being resolved for the first time.
-                  </p>
+                  <div className="mt-3">
+                    <p className="text-xs text-yellow-500/80 mb-3">
+                      Taking longer than expected. This usually means dependencies are being resolved for the first time.
+                    </p>
+                    {onRetryConnect && (
+                      <button
+                        onClick={onRetryConnect}
+                        className="flex items-center gap-2 mx-auto px-4 py-2 rounded-lg bg-white/10 text-gray-300 hover:bg-white/20 transition-colors text-sm font-medium"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Retry Connection
+                      </button>
+                    )}
+                  </div>
                 )}
               </>
             )}

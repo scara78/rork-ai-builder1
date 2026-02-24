@@ -17,6 +17,7 @@ interface PreviewPanelProps {
   connectedClients: number;
   snackError: string | null;
   hasRequestedOnline: boolean;
+  onRetryConnect?: () => void;
 }
 
 export function PreviewPanel({
@@ -29,6 +30,7 @@ export function PreviewPanel({
   connectedClients,
   snackError,
   hasRequestedOnline,
+  onRetryConnect,
 }: PreviewPanelProps) {
   const { generatingFiles } = useProjectStore();
   const { isRunning: isAgentRunning } = useAgentStore();
@@ -145,6 +147,7 @@ export function PreviewPanel({
               connectedClients={connectedClients}
               error={snackError}
               hasRequestedOnline={hasRequestedOnline}
+              onRetryConnect={onRetryConnect}
               className="w-full h-full"
             />
 
