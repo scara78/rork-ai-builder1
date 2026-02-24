@@ -4,19 +4,49 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import { Snack, SnackFiles, isModulePreloaded } from 'snack-sdk';
 import type { SnackState } from 'snack-sdk';
 
+interface DepState {
+  handle?: unknown;
+  error?: { message?: string } | string;
+  version?: string;
+}
+
 /**
  * Replicates the internal `isBusy` check from snack-sdk/State.
  * The Snack is "busy" when dependencies are still being resolved
  * or asset files are still being uploaded.
+ * Deps that have ERRORS are NOT counted as unresolved (they failed, not pending).
  */
 function computeIsBusy(state: SnackState): boolean {
-  const hasUnresolvedDeps = Object.keys(state.dependencies).some(
-    (name) => !(state.dependencies[name] as { handle?: unknown }).handle && !isModulePreloaded(name, state.sdkVersion)
-  );
+  const hasUnresolvedDeps = Object.keys(state.dependencies).some((name) => {
+    const dep = state.dependencies[name] as DepState;
+    // If dep has error, it's not "pending" — it failed
+    if (dep.error) return false;
+    return !dep.handle && !isModulePreloaded(name, state.sdkVersion);
+  });
   const hasUploadingAssets = Object.values(state.files).some(
     (file) => file.type === 'ASSET' && typeof file.contents !== 'string'
   );
   return hasUnresolvedDeps || hasUploadingAssets;
+}
+
+/**
+ * Collects dependency resolution errors from Snack state.
+ * Returns a user-readable error string or null.
+ */
+function collectDepErrors(state: SnackState): string | null {
+  const errors: string[] = [];
+  for (const name of Object.keys(state.dependencies)) {
+    const dep = state.dependencies[name] as DepState;
+    if (dep.error) {
+      const msg = typeof dep.error === 'string'
+        ? dep.error
+        : dep.error.message || 'resolution failed';
+      errors.push(`${name}@${dep.version || '?'}: ${msg}`);
+    }
+  }
+  return errors.length > 0
+    ? `Failed to resolve dependencies:\n${errors.join('\n')}`
+    : null;
 }
 
 const DEFAULT_SDK_VERSION = '52.0.0';
@@ -84,6 +114,9 @@ export function useSnack() {
   const [isOnline, setIsOnline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const onlineTimestampRef = useRef<number>(0);
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const busyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * Initialize the Snack instance.
@@ -124,6 +157,11 @@ const styles = StyleSheet.create({
     const unsubscribe = snack.addStateListener((state, prevState) => {
       if (state.webPreviewURL !== prevState.webPreviewURL) {
         setWebPreviewURL(state.webPreviewURL);
+        // Clear connection timeout once we get a preview URL
+        if (state.webPreviewURL && connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
       }
       if (state.url !== prevState.url) {
         setExpoURL(state.url);
@@ -136,19 +174,60 @@ const styles = StyleSheet.create({
       if (state.online !== prevState.online) {
         setIsOnline(state.online);
       }
+
+      // Check for dependency resolution errors
+      if (state.dependencies !== prevState.dependencies) {
+        const depError = collectDepErrors(state);
+        if (depError) {
+          setError(depError);
+          // Clear busy timeout — we know WHY it's stuck now
+          if (busyTimeoutRef.current) {
+            clearTimeout(busyTimeoutRef.current);
+            busyTimeoutRef.current = null;
+          }
+        }
+      }
+
+      // Track busy state + timeout
       const busy = computeIsBusy(state);
       const prevBusy = computeIsBusy(prevState);
       if (busy !== prevBusy) {
         setIsBusy(busy);
+        if (busy) {
+          // Start a timeout — if busy for >20s, something is stuck
+          busyTimeoutRef.current = setTimeout(() => {
+            const currentState = snack.getState();
+            const depErr = collectDepErrors(currentState);
+            if (depErr) {
+              setError(depErr);
+            } else if (computeIsBusy(currentState)) {
+              setError('Dependencies are taking too long to resolve. Try refreshing the page.');
+            }
+          }, 20_000);
+        } else {
+          // No longer busy — clear timeout
+          if (busyTimeoutRef.current) {
+            clearTimeout(busyTimeoutRef.current);
+            busyTimeoutRef.current = null;
+          }
+        }
       }
     });
 
     // Go online — webPreviewRef.current should already be set by the iframe
     snack.setOnline(true);
+    onlineTimestampRef.current = Date.now();
+
+    // Connection timeout — if no webPreviewURL after 25s, show error
+    connectionTimeoutRef.current = setTimeout(() => {
+      setError((prev) => prev || 'Could not connect to Expo preview server. Check your internet connection and try refreshing.');
+    }, 25_000);
 
     return () => {
       unsubscribe();
       snack.setOnline(false);
+      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+      if (busyTimeoutRef.current) clearTimeout(busyTimeoutRef.current);
     };
   }, [webPreviewRef]);
 

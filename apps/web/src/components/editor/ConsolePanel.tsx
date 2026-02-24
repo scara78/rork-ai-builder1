@@ -23,39 +23,78 @@ export function ConsolePanel() {
   const [filter, setFilter] = useState<LogLevel | "all">("all");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const addLog = (type: LogLevel, message: string) => {
+    if (!message || message.length === 0) return;
+    setLogs((prev) => {
+      const existing = prev.find((log) => log.message === message && log.type === type);
+      if (existing) {
+        return prev.map((log) =>
+          log.id === existing.id ? { ...log, count: log.count + 1 } : log
+        );
+      }
+      const newLog: ConsoleLog = {
+        id: `${Date.now()}-${Math.random()}`,
+        type,
+        message,
+        timestamp: Date.now(),
+        count: 1,
+      };
+      return [...prev, newLog].slice(-200); // Keep max 200 logs
+    });
+    // Auto-expand on errors so user sees them
+    if (type === 'error') {
+      setIsCollapsed(false);
+    }
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      // Listen for console messages from preview iframe
-      if (e.data?.source === "rork-preview-console") {
-        const { type, message } = e.data;
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
 
-        setLogs((prev) => {
-          // Check if this message already exists (for grouping)
-          const existing = prev.find((log) => log.message === message && log.type === type);
+      // Our own console messages from preview iframe
+      if (data.source === "rork-preview-console") {
+        addLog(data.type || 'log', data.message || '');
+        return;
+      }
 
-          if (existing) {
-            // Increment count for repeated messages
-            return prev.map((log) =>
-              log.id === existing.id ? { ...log, count: log.count + 1 } : log
-            );
-          }
+      // Snack web player console messages (format: { type: 'console', level, args })
+      if (data.type === 'console' && data.level) {
+        const level: LogLevel = (['error', 'warn', 'info'].includes(data.level)) ? data.level : 'log';
+        const msg = Array.isArray(data.args) ? data.args.map(String).join(' ') : (data.message || '');
+        if (msg) addLog(level, msg);
+        return;
+      }
 
-          // Add new log
-          const newLog: ConsoleLog = {
-            id: `${Date.now()}-${Math.random()}`,
-            type,
-            message,
-            timestamp: Date.now(),
-            count: 1,
-          };
+      // Snack runtime errors
+      if (data.type === 'error' || data.type === 'unhandled_error') {
+        const msg = data.message || data.error || 'Runtime error';
+        addLog('error', msg);
+        return;
+      }
 
-          return [...prev, newLog];
-        });
+      // Snack dependency resolution errors
+      if (data.type === 'dep_error' || data.type === 'DEPENDENCY_ERROR') {
+        const msg = data.message || data.error || 'Dependency resolution error';
+        addLog('error', msg);
+        return;
+      }
+
+      // Snack status messages (loading, connected, etc.)
+      if (data.type === 'STATUS_REPORT') {
+        if (data.error) {
+          const msg = typeof data.error === 'string' ? data.error : data.error.message || 'Status error';
+          addLog('error', msg);
+        } else if (data.status) {
+          addLog('info', `Preview: ${data.status}`);
+        }
+        return;
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-scroll to bottom when new logs arrive
@@ -114,11 +153,15 @@ export function ConsolePanel() {
         >
           <Terminal className="h-4 w-4" />
           <span>Console</span>
-          {logs.length > 0 && (
+          {logCounts.error > 0 ? (
+            <span className="px-1.5 py-0.5 text-xs bg-red-500/20 rounded-md text-red-400 font-medium">
+              {logCounts.error} error{logCounts.error > 1 ? 's' : ''}
+            </span>
+          ) : logs.length > 0 ? (
             <span className="px-1.5 py-0.5 text-xs bg-[#27272a] rounded-md text-white">
               {logs.length}
             </span>
-          )}
+          ) : null}
           <ChevronDown
             className={cn(
               "h-4 w-4 transition-transform",

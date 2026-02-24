@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { AlertCircle, RefreshCw, Wand2, Loader2, Wifi, WifiOff } from 'lucide-react';
 
 interface SnackPreviewProps {
@@ -26,9 +26,11 @@ export function SnackPreview({
   const [isLoading, setIsLoading] = useState(true);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const prevURLRef = useRef<string | undefined>(undefined);
+  const autoFixSentRef = useRef<string | null>(null);
+  const connectingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [connectingTooLong, setConnectingTooLong] = useState(false);
 
   // Wire up the webPreviewRef to iframe's contentWindow IMMEDIATELY on mount.
-  // The iframe always renders (with about:blank initially) so contentWindow exists.
   useEffect(() => {
     const iframe = iframeRef.current;
     if (iframe) {
@@ -48,23 +50,69 @@ export function SnackPreview({
       prevURLRef.current = webPreviewURL;
       setIsLoading(true);
       setRuntimeError(null);
+      setConnectingTooLong(false);
       iframe.src = webPreviewURL;
+
+      // Clear connecting timer
+      if (connectingTimerRef.current) {
+        clearTimeout(connectingTimerRef.current);
+        connectingTimerRef.current = null;
+      }
     }
   }, [webPreviewURL]);
 
-  // Listen for runtime errors from the Snack web player
+  // Track "connecting too long" state — if no webPreviewURL after 15s
+  useEffect(() => {
+    if (!webPreviewURL && !snackError) {
+      connectingTimerRef.current = setTimeout(() => {
+        setConnectingTooLong(true);
+      }, 15_000);
+    } else {
+      setConnectingTooLong(false);
+      if (connectingTimerRef.current) {
+        clearTimeout(connectingTimerRef.current);
+        connectingTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (connectingTimerRef.current) {
+        clearTimeout(connectingTimerRef.current);
+      }
+    };
+  }, [webPreviewURL, snackError]);
+
+  // Listen for messages from the Snack web player
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       const data = e.data;
       if (!data || typeof data !== 'object') return;
 
-      // Snack web player error format
+      // Snack web player runtime errors
       if (data.type === 'error' || data.type === 'unhandled_error') {
-        const msg = data.message || data.error || 'Runtime error';
+        const msg = data.message || data.error || 'Runtime error in preview';
         setRuntimeError(msg);
       }
+
+      // Snack web player status reports with errors
+      if (data.type === 'STATUS_REPORT' && data.error) {
+        const msg = typeof data.error === 'string' ? data.error : data.error.message || 'Preview status error';
+        setRuntimeError(msg);
+      }
+
+      // Transport errors (connection issues with Snack backend)
+      if (data.type === 'TRANSPORT_ERROR') {
+        const msg = data.message || data.error || 'Connection error with preview server';
+        setRuntimeError(msg);
+      }
+
+      // Console errors from the web player (source: snack-runtime)
+      if (data.type === 'console' && data.level === 'error') {
+        const msg = Array.isArray(data.args) ? data.args.join(' ') : (data.message || 'Console error');
+        setRuntimeError(msg);
+      }
+
       // Clear errors on successful load
-      if (data.type === 'loading_complete' || data.type === 'done') {
+      if (data.type === 'loading_complete' || data.type === 'done' || data.type === 'CONNECTED') {
         setRuntimeError(null);
         setIsLoading(false);
       }
@@ -73,11 +121,31 @@ export function SnackPreview({
     return () => window.removeEventListener('message', handler);
   }, []);
 
+  const dispatchFixWithAI = useCallback((errorMsg: string) => {
+    const errorPrompt = `The Expo Snack preview has an error. Please analyze and fix the issue:\n\n\`\`\`\n${errorMsg}\n\`\`\`\n\nLook at the error carefully — if it mentions a package version issue, update package.json with the correct version. If it's a code error, fix the relevant source files. Make sure all imports are correct and all referenced files exist.`;
+    window.dispatchEvent(new CustomEvent('send-to-ai', { detail: { message: errorPrompt } }));
+  }, []);
+
+  // Auto-dispatch "Fix with AI" when a dependency error is detected from useSnack
+  // Only send once per unique error to avoid spam loops
+  useEffect(() => {
+    if (snackError && snackError.includes('Failed to resolve dependencies')) {
+      if (autoFixSentRef.current !== snackError) {
+        autoFixSentRef.current = snackError;
+        // Small delay so the error UI is visible first
+        const timer = setTimeout(() => {
+          dispatchFixWithAI(snackError);
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [snackError, dispatchFixWithAI]);
+
   const handleFixWithAI = () => {
     const errorMsg = runtimeError || snackError;
     if (!errorMsg) return;
-    const errorPrompt = `I'm getting this runtime error in the Expo preview:\n\n${errorMsg}\n\nPlease analyze the root cause and fix it.`;
-    window.dispatchEvent(new CustomEvent('send-to-ai', { detail: { message: errorPrompt } }));
+    autoFixSentRef.current = errorMsg;
+    dispatchFixWithAI(errorMsg);
   };
 
   const handleRefresh = () => {
@@ -104,6 +172,11 @@ export function SnackPreview({
             <p className="text-xs text-gray-600">
               {isOnline ? 'Online — waiting for web player' : 'Going online...'}
             </p>
+            {connectingTooLong && (
+              <p className="mt-3 text-xs text-yellow-500/80">
+                Taking longer than expected. This usually means dependencies are being resolved for the first time.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -133,6 +206,11 @@ export function SnackPreview({
                 Fix with AI
               </button>
             </div>
+            {snackError?.includes('Failed to resolve dependencies') && (
+              <p className="mt-3 text-xs text-orange-400/80">
+                AI is being notified to fix this automatically...
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -164,7 +242,7 @@ export function SnackPreview({
           <div className="flex items-start gap-2">
             <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-red-300 font-mono truncate">{runtimeError}</p>
+              <p className="text-xs text-red-300 font-mono line-clamp-3">{runtimeError}</p>
             </div>
             <button
               onClick={handleFixWithAI}
