@@ -12,14 +12,11 @@ interface DepState {
 
 /**
  * Replicates the internal `isBusy` check from snack-sdk/State.
- * The Snack is "busy" when dependencies are still being resolved
- * or asset files are still being uploaded.
  * Deps that have ERRORS are NOT counted as unresolved (they failed, not pending).
  */
 function computeIsBusy(state: SnackState): boolean {
   const hasUnresolvedDeps = Object.keys(state.dependencies).some((name) => {
     const dep = state.dependencies[name] as DepState;
-    // If dep has error, it's not "pending" — it failed
     if (dep.error) return false;
     return !dep.handle && !isModulePreloaded(name, state.sdkVersion);
   });
@@ -31,7 +28,6 @@ function computeIsBusy(state: SnackState): boolean {
 
 /**
  * Collects dependency resolution errors from Snack state.
- * Returns a user-readable error string or null.
  */
 function collectDepErrors(state: SnackState): string | null {
   const errors: string[] = [];
@@ -53,8 +49,7 @@ const DEFAULT_SDK_VERSION = '52.0.0';
 
 /**
  * Known-good dependency versions for Expo SDK 52 in the Snack environment.
- * AI models frequently hallucinate wrong version numbers (e.g. expo-image@~4.0.0
- * doesn't exist on Snackager and returns a 500 error). This map overrides
+ * AI models frequently hallucinate wrong version numbers. This map overrides
  * whatever version the AI puts in package.json with a version Snackager can resolve.
  */
 const SDK52_VERSION_MAP: Record<string, string> = {
@@ -76,17 +71,10 @@ const SDK52_VERSION_MAP: Record<string, string> = {
   '@react-native-async-storage/async-storage': '~2.1.0',
 };
 
-/**
- * Resolves a dependency version. If the package is in our known-good map,
- * use the pinned version. Otherwise pass through the AI-provided version.
- */
 function resolveVersion(name: string, aiVersion: string): string {
   return SDK52_VERSION_MAP[name] ?? aiVersion;
 }
 
-/**
- * Parses a package.json content string and extracts dependencies as { name: version } pairs.
- */
 function parseDependencies(packageJsonContent: string): Record<string, string> {
   try {
     const pkg = JSON.parse(packageJsonContent);
@@ -96,17 +84,21 @@ function parseDependencies(packageJsonContent: string): Record<string, string> {
   }
 }
 
+// Retry backoff delays in ms
+const RETRY_DELAYS = [5000, 10000, 15000];
+
 /**
  * Hook that manages an Expo Snack session.
- * - Creates a Snack instance on mount (delayed until iframe is ready)
- * - Exposes updateFiles / updateDependencies / getState
- * - Provides webPreviewURL for the iframe
- * - Provides expoURL for QR code / Expo Go
+ *
+ * KEY CHANGE: Snack does NOT go online automatically on mount.
+ * The caller must explicitly call `goOnline()` when there are real files to preview
+ * (after agent completes or after loading a project with existing files).
  */
 export function useSnack() {
   const webPreviewRef = useRef<Window | null>(null);
   const snackRef = useRef<Snack | null>(null);
   const isInitializedRef = useRef(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const [webPreviewURL, setWebPreviewURL] = useState<string | undefined>(undefined);
   const [expoURL, setExpoURL] = useState<string | undefined>(undefined);
@@ -114,17 +106,19 @@ export function useSnack() {
   const [isOnline, setIsOnline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const onlineTimestampRef = useRef<number>(0);
+  // Track whether goOnline() has been called (so SnackPreview can distinguish "waiting for AI" vs "connecting")
+  const [hasRequestedOnline, setHasRequestedOnline] = useState(false);
+
   const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * Initialize the Snack instance.
-   * Called once after the iframe has mounted and webPreviewRef.current is set.
+   * Create or re-create the Snack instance (without going online).
    */
-  const initSnack = useCallback(() => {
-    if (isInitializedRef.current) return;
-    isInitializedRef.current = true;
+  const ensureSnackInstance = useCallback(() => {
+    if (snackRef.current) return snackRef.current;
 
     const snack = new Snack({
       sdkVersion: DEFAULT_SDK_VERSION,
@@ -153,14 +147,18 @@ const styles = StyleSheet.create({
 
     snackRef.current = snack;
 
-    // Listen for state changes
-    const unsubscribe = snack.addStateListener((state, prevState) => {
+    // Attach state listener
+    if (unsubscribeRef.current) unsubscribeRef.current();
+    const unsub = snack.addStateListener((state, prevState) => {
       if (state.webPreviewURL !== prevState.webPreviewURL) {
         setWebPreviewURL(state.webPreviewURL);
-        // Clear connection timeout once we get a preview URL
-        if (state.webPreviewURL && connectionTimeoutRef.current) {
-          clearTimeout(connectionTimeoutRef.current);
-          connectionTimeoutRef.current = null;
+        // Got a preview URL — clear connection timeout + retry state
+        if (state.webPreviewURL) {
+          if (connectionTimeoutRef.current) {
+            clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = null;
+          }
+          retryCountRef.current = 0;
         }
       }
       if (state.url !== prevState.url) {
@@ -180,7 +178,6 @@ const styles = StyleSheet.create({
         const depError = collectDepErrors(state);
         if (depError) {
           setError(depError);
-          // Clear busy timeout — we know WHY it's stuck now
           if (busyTimeoutRef.current) {
             clearTimeout(busyTimeoutRef.current);
             busyTimeoutRef.current = null;
@@ -194,7 +191,6 @@ const styles = StyleSheet.create({
       if (busy !== prevBusy) {
         setIsBusy(busy);
         if (busy) {
-          // Start a timeout — if busy for >20s, something is stuck
           busyTimeoutRef.current = setTimeout(() => {
             const currentState = snack.getState();
             const depErr = collectDepErrors(currentState);
@@ -205,7 +201,6 @@ const styles = StyleSheet.create({
             }
           }, 20_000);
         } else {
-          // No longer busy — clear timeout
           if (busyTimeoutRef.current) {
             clearTimeout(busyTimeoutRef.current);
             busyTimeoutRef.current = null;
@@ -213,43 +208,102 @@ const styles = StyleSheet.create({
         }
       }
     });
+    unsubscribeRef.current = unsub;
+    isInitializedRef.current = true;
 
-    // Go online — webPreviewRef.current should already be set by the iframe
-    snack.setOnline(true);
-    onlineTimestampRef.current = Date.now();
-
-    // Connection timeout — if no webPreviewURL after 25s, show error
-    connectionTimeoutRef.current = setTimeout(() => {
-      setError((prev) => prev || 'Could not connect to Expo preview server. Check your internet connection and try refreshing.');
-    }, 25_000);
-
-    return () => {
-      unsubscribe();
-      snack.setOnline(false);
-      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
-      if (busyTimeoutRef.current) clearTimeout(busyTimeoutRef.current);
-    };
+    return snack;
   }, [webPreviewRef]);
 
-  // Wait a tick for the iframe to mount, then initialize Snack.
-  // The iframe renders with about:blank immediately, so after first render
-  // webPreviewRef.current will be set by SnackPreview's useEffect.
+  /**
+   * Wire up iframe ref on mount — but do NOT go online.
+   */
   useEffect(() => {
-    const timer = setTimeout(() => {
-      initSnack();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [initSnack]);
+    // Just create the Snack instance so files can be pushed before going online
+    ensureSnackInstance();
+
+    return () => {
+      if (unsubscribeRef.current) unsubscribeRef.current();
+      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+      if (busyTimeoutRef.current) clearTimeout(busyTimeoutRef.current);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      const snack = snackRef.current;
+      if (snack) {
+        try { snack.setOnline(false); } catch { /* ignore */ }
+      }
+    };
+  }, [ensureSnackInstance]);
+
+  /**
+   * Go online — call this ONLY when there are real files to preview.
+   * Includes retry logic: if connection fails (no webPreviewURL after 20s),
+   * retries up to 3 times with exponential backoff.
+   */
+  const goOnline = useCallback(() => {
+    setHasRequestedOnline(true);
+    setError(null);
+
+    const snack = ensureSnackInstance();
+
+    // If already online and has a preview URL, nothing to do
+    if (snack.getState().webPreviewURL) return;
+
+    // Small delay to ensure iframe's contentWindow is available
+    setTimeout(() => {
+      snack.setOnline(true);
+
+      // Start connection timeout — if no preview URL after 20s, retry or error
+      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = setTimeout(() => {
+        const state = snack.getState();
+        if (state.webPreviewURL) return; // Connected successfully
+
+        const attempt = retryCountRef.current;
+        if (attempt < RETRY_DELAYS.length) {
+          // Retry with backoff
+          console.log(`[useSnack] Connection attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+          retryCountRef.current = attempt + 1;
+
+          // Go offline, wait, then go back online
+          snack.setOnline(false);
+          retryTimerRef.current = setTimeout(() => {
+            setError(null);
+            snack.setOnline(true);
+
+            // Set up next timeout check
+            connectionTimeoutRef.current = setTimeout(() => {
+              const retryState = snack.getState();
+              if (!retryState.webPreviewURL) {
+                // Recursively check for more retries
+                const nextAttempt = retryCountRef.current;
+                if (nextAttempt < RETRY_DELAYS.length) {
+                  retryCountRef.current = nextAttempt + 1;
+                  snack.setOnline(false);
+                  retryTimerRef.current = setTimeout(() => {
+                    snack.setOnline(true);
+                    connectionTimeoutRef.current = setTimeout(() => {
+                      if (!snack.getState().webPreviewURL) {
+                        setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
+                      }
+                    }, 20_000);
+                  }, RETRY_DELAYS[nextAttempt] || 15000);
+                } else {
+                  setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
+                }
+              }
+            }, 20_000);
+          }, RETRY_DELAYS[attempt]);
+        } else {
+          setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
+        }
+      }, 20_000);
+    }, 150);
+  }, [ensureSnackInstance]);
 
   /**
    * Update files in the Snack.
-   * Accepts our project file format { path: string, content: string }[]
-   * and converts to Snack's format.
-   * Also auto-parses package.json to sync dependencies.
    */
   const updateFiles = useCallback((files: Array<{ path: string; content: string }>) => {
-    const snack = snackRef.current;
-    if (!snack) return;
+    const snack = snackRef.current ?? ensureSnackInstance();
 
     const snackFiles: SnackFiles = {};
     let depsToSync: Record<string, string> | null = null;
@@ -257,10 +311,8 @@ const styles = StyleSheet.create({
     for (const file of files) {
       const path = file.path.startsWith('/') ? file.path.slice(1) : file.path;
 
-      // If this is package.json, parse it for dependencies
       if (path === 'package.json') {
         depsToSync = parseDependencies(file.content);
-        // Don't push package.json as a Snack file — Snack manages deps separately
         continue;
       }
 
@@ -274,13 +326,10 @@ const styles = StyleSheet.create({
       snack.updateFiles(snackFiles);
     }
 
-    // Sync dependencies from package.json
     if (depsToSync && Object.keys(depsToSync).length > 0) {
       const snackDeps: Record<string, { version: string }> = {};
       for (const [name, version] of Object.entries(depsToSync)) {
-        // Skip react/react-native — they're always included
         if (name === 'react' || name === 'react-native' || name === 'react-dom') continue;
-        // Use pinned SDK 52 version when available to avoid Snackager 500 errors
         snackDeps[name] = { version: resolveVersion(name, version) };
       }
       if (Object.keys(snackDeps).length > 0) {
@@ -289,11 +338,10 @@ const styles = StyleSheet.create({
     }
 
     setError(null);
-  }, []);
+  }, [ensureSnackInstance]);
 
   /**
    * Update all files at once (replace entire file set).
-   * Used when loading a project or after agent completes.
    */
   const setAllFiles = useCallback((files: Record<string, { path: string; content: string }>) => {
     const fileArray = Object.values(files).map(f => ({
@@ -307,23 +355,18 @@ const styles = StyleSheet.create({
    * Add or update dependencies.
    */
   const updateDependencies = useCallback((deps: Record<string, string>) => {
-    const snack = snackRef.current;
-    if (!snack) return;
+    const snack = snackRef.current ?? ensureSnackInstance();
 
     const snackDeps: Record<string, { version: string }> = {};
     for (const [name, version] of Object.entries(deps)) {
       snackDeps[name] = { version: resolveVersion(name, version) };
     }
     snack.updateDependencies(snackDeps);
-  }, []);
+  }, [ensureSnackInstance]);
 
-  /**
-   * Save the Snack to Expo servers. Returns the URL.
-   */
   const saveSnack = useCallback(async () => {
     const snack = snackRef.current;
     if (!snack) return null;
-
     try {
       const result = await snack.saveAsync();
       return result;
@@ -333,13 +376,9 @@ const styles = StyleSheet.create({
     }
   }, []);
 
-  /**
-   * Get download URL for zip export.
-   */
   const getDownloadURL = useCallback(async () => {
     const snack = snackRef.current;
     if (!snack) return null;
-
     try {
       const url = await snack.getDownloadURLAsync();
       return url;
@@ -357,9 +396,11 @@ const styles = StyleSheet.create({
     isOnline,
     isBusy,
     error,
+    hasRequestedOnline,
     updateFiles,
     setAllFiles,
     updateDependencies,
+    goOnline,
     saveSnack,
     getDownloadURL,
     snackRef,

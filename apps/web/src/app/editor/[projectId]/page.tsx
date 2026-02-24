@@ -38,7 +38,7 @@ export default function EditorPage() {
   const { setProject, files, setActiveFile, setAgentMode } = useProjectStore();
   const { showToast } = useToast();
 
-  // Snack SDK — manages Expo preview session
+  // Snack SDK — manages Expo preview session (lazy: does NOT connect on mount)
   const {
     webPreviewRef,
     webPreviewURL,
@@ -47,8 +47,10 @@ export default function EditorPage() {
     isOnline: snackIsOnline,
     isBusy: snackIsBusy,
     error: snackError,
+    hasRequestedOnline: snackHasRequestedOnline,
     setAllFiles: snackSetAllFiles,
     updateFiles: snackUpdateFiles,
+    goOnline: snackGoOnline,
   } = useSnack();
 
   // Auto-save dirty files every 2 seconds after changes
@@ -212,10 +214,18 @@ export default function EditorPage() {
     loadProject();
   }, [projectId, router, setProject]);
 
-  // Push all project files to Snack when project finishes loading
+  // Push all project files to Snack when project finishes loading.
+  // If the project has more than just default scaffold (>3 files), also go online immediately.
   useEffect(() => {
     if (!loading && Object.keys(files).length > 0) {
       snackSetAllFiles(files as Record<string, { path: string; content: string }>);
+
+      // If project has real files (not just App.tsx + package.json + tsconfig.json),
+      // go online immediately so user sees the preview
+      const fileCount = Object.keys(files).length;
+      if (fileCount > 3) {
+        snackGoOnline();
+      }
     }
     // Only run when loading transitions to false (project load complete)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,6 +246,15 @@ export default function EditorPage() {
     window.addEventListener('project-files-changed', handler);
     return () => window.removeEventListener('project-files-changed', handler);
   }, [snackUpdateFiles]);
+
+  // When the AI agent finishes building, go online so the preview connects
+  useEffect(() => {
+    const handler = () => {
+      snackGoOnline();
+    };
+    window.addEventListener('agent-build-complete', handler);
+    return () => window.removeEventListener('agent-build-complete', handler);
+  }, [snackGoOnline]);
 
   // Handle "View Code" from chat panel - switch to code view and open file
   const handleViewCode = useCallback((filePath?: string) => {
@@ -308,6 +327,7 @@ export default function EditorPage() {
               isBusy={snackIsBusy}
               connectedClients={snackConnectedClients}
               snackError={snackError}
+              hasRequestedOnline={snackHasRequestedOnline}
             />
           ) : (
             <div className="flex h-full">

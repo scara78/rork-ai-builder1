@@ -10,6 +10,7 @@ interface SnackPreviewProps {
   isBusy: boolean;
   connectedClients: number;
   error: string | null;
+  hasRequestedOnline: boolean;
   className?: string;
 }
 
@@ -20,6 +21,7 @@ export function SnackPreview({
   isBusy,
   connectedClients,
   error: snackError,
+  hasRequestedOnline,
   className,
 }: SnackPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -61,9 +63,9 @@ export function SnackPreview({
     }
   }, [webPreviewURL]);
 
-  // Track "connecting too long" state — if no webPreviewURL after 15s
+  // Track "connecting too long" state — only after goOnline() has been called
   useEffect(() => {
-    if (!webPreviewURL && !snackError) {
+    if (hasRequestedOnline && !webPreviewURL && !snackError) {
       connectingTimerRef.current = setTimeout(() => {
         setConnectingTooLong(true);
       }, 15_000);
@@ -79,7 +81,7 @@ export function SnackPreview({
         clearTimeout(connectingTimerRef.current);
       }
     };
-  }, [webPreviewURL, snackError]);
+  }, [hasRequestedOnline, webPreviewURL, snackError]);
 
   // Listen for messages from the Snack web player
   useEffect(() => {
@@ -161,21 +163,39 @@ export function SnackPreview({
 
   return (
     <div className={`relative w-full h-full ${className || ''}`}>
-      {/* Status overlay — shown when waiting for Snack to come online */}
+      {/* Status overlay — waiting for AI or connecting to Expo */}
       {!webPreviewURL && !displayError && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a] z-10">
           <div className="text-center text-gray-500 p-8">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin mb-4 opacity-40" />
-            <p className="text-sm font-medium text-gray-400 mb-1">
-              {isBusy ? 'Resolving dependencies...' : 'Connecting to Expo...'}
-            </p>
-            <p className="text-xs text-gray-600">
-              {isOnline ? 'Online — waiting for web player' : 'Going online...'}
-            </p>
-            {connectingTooLong && (
-              <p className="mt-3 text-xs text-yellow-500/80">
-                Taking longer than expected. This usually means dependencies are being resolved for the first time.
-              </p>
+            {!hasRequestedOnline ? (
+              <>
+                {/* Not yet online — waiting for AI to generate code */}
+                <div className="mx-auto h-10 w-10 mb-4 rounded-xl bg-zinc-800 flex items-center justify-center">
+                  <Wand2 className="h-5 w-5 text-zinc-500" />
+                </div>
+                <p className="text-sm font-medium text-gray-400 mb-1">
+                  Waiting for code...
+                </p>
+                <p className="text-xs text-gray-600">
+                  Preview will appear after AI generates your app
+                </p>
+              </>
+            ) : (
+              <>
+                {/* Online requested — connecting to Expo */}
+                <Loader2 className="mx-auto h-8 w-8 animate-spin mb-4 opacity-40" />
+                <p className="text-sm font-medium text-gray-400 mb-1">
+                  {isBusy ? 'Resolving dependencies...' : 'Connecting to Expo...'}
+                </p>
+                <p className="text-xs text-gray-600">
+                  {isOnline ? 'Online — waiting for web player' : 'Going online...'}
+                </p>
+                {connectingTooLong && (
+                  <p className="mt-3 text-xs text-yellow-500/80">
+                    Taking longer than expected. This usually means dependencies are being resolved for the first time.
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>

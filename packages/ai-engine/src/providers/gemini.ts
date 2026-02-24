@@ -14,6 +14,21 @@ const GEMINI_MODEL = 'gemini-3.1-pro-preview';
 // Maximum number of API calls to prevent infinite loops / runaway costs
 const MAX_API_CALLS = 100;
 
+// After this many written files, compress the chat history to avoid context bloat
+const COMPRESS_AFTER_FILES = 6;
+
+// Max consecutive empty responses before resetting the session
+const MAX_CONSECUTIVE_EMPTY = 2;
+
+// Total empty responses across all session resets before giving up
+const MAX_TOTAL_EMPTY = 4;
+
+// Max retries for transient API errors (timeout, 503, rate limit)
+const MAX_API_RETRIES = 2;
+
+// Delay between API retries in ms
+const API_RETRY_DELAY_MS = 3000;
+
 // ── Tool Declarations ──────────────────────────────────────────────────────
 
 const CREATE_PLAN_DECLARATION = {
@@ -121,9 +136,58 @@ function buildContinuationPrompt(remainingFiles: string[]): string {
     '',
     ...remainingFiles.map((f) => `- ${f}`),
     '',
-    'Continue by calling write_file for 1-3 of these files. We will loop until all files are written. Do NOT try to write all of them at once.',
+    'Continue by calling write_file for 3-5 of these files. We will loop until all files are written. Do NOT try to write all of them at once.',
     'Do NOT stop or explain — just call write_file immediately.',
   ].join('\n');
+}
+
+/**
+ * Build a compressed summary of written files for context compression.
+ * Instead of keeping the full file content in history, we summarize what was written.
+ */
+function buildCompressedContext(
+  writtenFiles: Set<string>,
+  planData: { appName: string; fileTree: string[] } | null,
+  remainingFiles: string[],
+): string {
+  const written = Array.from(writtenFiles);
+  return [
+    `=== SESSION CONTEXT (compressed) ===`,
+    planData ? `App: ${planData.appName}` : '',
+    planData ? `Plan: ${planData.fileTree.length} total files` : '',
+    `Already written (${written.length}): ${written.join(', ')}`,
+    remainingFiles.length > 0
+      ? `Remaining (${remainingFiles.length}): ${remainingFiles.join(', ')}`
+      : 'All files written.',
+    `=== END CONTEXT ===`,
+    '',
+    remainingFiles.length > 0
+      ? `Continue writing the remaining ${remainingFiles.length} files. Call write_file for 3-5 of them now.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Check if an error is transient and should be retried */
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes('timeout') ||
+    msg.includes('503') ||
+    msg.includes('429') ||
+    msg.includes('rate limit') ||
+    msg.includes('resource exhausted') ||
+    msg.includes('unavailable') ||
+    msg.includes('internal error') ||
+    msg.includes('deadline exceeded')
+  );
+}
+
+/** Sleep for a given number of milliseconds */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function buildErrorFixPrompt(errors: string[]): string {
@@ -169,9 +233,13 @@ export class GeminiProvider implements AIProvider {
   /**
    * Agentic streaming code generation with Plan → Write → Complete loop.
    *
-   * Modeled after opencode's approach:
-   * - No fixed round limit — loop runs until `complete` tool is called or all plan files are written
-   * - If the model stops without completing, a continuation prompt is injected and the loop resumes
+   * Key resilience features:
+   * - Context compression: after COMPRESS_AFTER_FILES writes, creates a fresh chat
+   *   session with compressed history to prevent context bloat
+   * - Empty response tracking: resets session after MAX_CONSECUTIVE_EMPTY empty
+   *   responses; gives up gracefully after MAX_TOTAL_EMPTY total
+   * - Retryable API errors: retries transient errors (timeout, 503, rate limit)
+   *   up to MAX_API_RETRIES times with API_RETRY_DELAY_MS between
    * - Safety cap at MAX_API_CALLS to avoid runaway costs
    */
   async *streamCode(params: GenerateParams): AsyncGenerator<StreamChunk> {
@@ -201,9 +269,8 @@ export class GeminiProvider implements AIProvider {
       userContent = `Current project files:\n${fileContext}\n\nUser request: ${prompt}`;
     }
 
-    // Create chat session with all 3 tools
-    // We removed thinkingConfig because gemini-2.5-pro does not support it
-    const chat = this.ai.chats.create({
+    // Shared config for creating chat sessions
+    const chatConfig = {
       model: GEMINI_MODEL,
       config: {
         tools: ALL_TOOLS,
@@ -211,6 +278,11 @@ export class GeminiProvider implements AIProvider {
         maxOutputTokens: maxTokens,
         temperature: 1.0,
       },
+    };
+
+    // Create initial chat session
+    let chat = this.ai.chats.create({
+      ...chatConfig,
       history: this.formatHistory(conversationHistory),
     });
 
@@ -221,15 +293,69 @@ export class GeminiProvider implements AIProvider {
     let planData: StreamChunk['plan'] | null = null;
     let isComplete = false;
     let apiCallCount = 0;
+    let lastCompressedAt = 0; // writtenFiles.size when we last compressed
+    let consecutiveEmptyResponses = 0;
+    let totalEmptyResponses = 0;
+
+    /**
+     * Send a message with retry logic for transient errors.
+     * Returns { response, retried } so the caller can yield status messages if needed.
+     */
+    const sendWithRetry = async (message: Parameters<typeof chat.sendMessage>[0]): Promise<Awaited<ReturnType<typeof chat.sendMessage>>> => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt <= MAX_API_RETRIES; attempt++) {
+        try {
+          const resp = await chat.sendMessage(message);
+          return resp;
+        } catch (err) {
+          lastError = err;
+          if (attempt < MAX_API_RETRIES && isRetryableError(err)) {
+            console.log(`[gemini] Retryable error on attempt ${attempt + 1}/${MAX_API_RETRIES + 1}: ${err instanceof Error ? err.message : err}`);
+            await sleep(API_RETRY_DELAY_MS);
+          } else {
+            throw err;
+          }
+        }
+      }
+      throw lastError;
+    };
+
+    /**
+     * Create a fresh chat session with compressed context.
+     * Replaces the accumulated history with a short summary.
+     */
+    const compressAndResetChat = (): void => {
+      const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
+      const summary = buildCompressedContext(
+        writtenFiles,
+        planData ? { appName: planData.appName || 'App', fileTree: planFileTree } : null,
+        remainingFiles,
+      );
+
+      console.log(`[gemini] Compressing context: ${writtenFiles.size} written, ${remainingFiles.length} remaining. Creating fresh chat session.`);
+
+      chat = this.ai.chats.create({
+        ...chatConfig,
+        history: [
+          { role: 'user', parts: [{ text: summary }] },
+          { role: 'model', parts: [{ text: 'Understood. I will continue writing the remaining files now.' }] },
+        ],
+      });
+      lastCompressedAt = writtenFiles.size;
+    };
 
     try {
       // ── Phase: initial send ──
       yield { type: 'phase', phase: 'planning' };
-      let response = await chat.sendMessage({ message: userContent });
+      console.log(`[gemini] Starting streamCode. agentMode=${agentMode}`);
+
+      let response = await sendWithRetry({ message: userContent });
       apiCallCount++;
 
       // ── Main agentic loop ──
       while (!isComplete && apiCallCount < MAX_API_CALLS) {
+        console.log(`[gemini] Loop iteration: apiCalls=${apiCallCount}, written=${writtenFiles.size}/${planFileTree.length}, functionCalls=${response.functionCalls?.length ?? 0}`);
+
         // Stream text incrementally (not buffered until loop end)
         if (response.text) {
           fullText += response.text;
@@ -239,16 +365,38 @@ export class GeminiProvider implements AIProvider {
         // Process function calls
         const functionCalls = response.functionCalls;
         if (!functionCalls || functionCalls.length === 0) {
-          // Model stopped without calling any tool
-          // Check if there are remaining files to write
+          // ── Empty response handling (Fix 2C) ──
+          consecutiveEmptyResponses++;
+          totalEmptyResponses++;
+          console.log(`[gemini] Empty response #${consecutiveEmptyResponses} (total: ${totalEmptyResponses})`);
+
           if (agentMode === 'build') {
             const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
 
             if (remainingFiles.length > 0) {
-              // Inject continuation prompt and resume
+              // Check if we should give up entirely
+              if (totalEmptyResponses >= MAX_TOTAL_EMPTY) {
+                console.log(`[gemini] Giving up after ${totalEmptyResponses} total empty responses. ${writtenFiles.size}/${planFileTree.length} files written.`);
+                yield { type: 'text', content: `\n[Warning: AI stopped responding after writing ${writtenFiles.size}/${planFileTree.length} files. Completing with files written so far.]\n` };
+                break;
+              }
+
+              // Reset session after consecutive empties
+              if (consecutiveEmptyResponses >= MAX_CONSECUTIVE_EMPTY) {
+                console.log(`[gemini] ${consecutiveEmptyResponses} consecutive empties. Resetting session.`);
+                yield { type: 'text', content: `\n[Session reset: ${remainingFiles.length} files remaining...]\n` };
+                compressAndResetChat();
+                consecutiveEmptyResponses = 0;
+                const continuationMsg = buildContinuationPrompt(remainingFiles);
+                response = await sendWithRetry({ message: continuationMsg });
+                apiCallCount++;
+                continue;
+              }
+
+              // Regular continuation
               const continuationMsg = buildContinuationPrompt(remainingFiles);
               yield { type: 'text', content: `\n[Continuing: ${remainingFiles.length} files remaining...]\n` };
-              response = await chat.sendMessage({ message: continuationMsg });
+              response = await sendWithRetry({ message: continuationMsg });
               apiCallCount++;
               continue;
             }
@@ -257,6 +405,9 @@ export class GeminiProvider implements AIProvider {
           // No plan or all files written but complete not called — auto-complete
           break;
         }
+
+        // Got function calls — reset consecutive empty counter
+        consecutiveEmptyResponses = 0;
 
         // Build function responses
         const functionResponseParts: Part[] = [];
@@ -284,10 +435,10 @@ export class GeminiProvider implements AIProvider {
               planSteps: args.plan_steps || [],
             };
 
+            console.log(`[gemini] Plan created: ${planData.appName}, ${planFileTree.length} files`);
             yield { type: 'plan', plan: planData };
             
             if (agentMode === 'plan') {
-              // Just finish planning
               functionResponseParts.push({
                 functionResponse: {
                   name: 'create_plan',
@@ -326,7 +477,6 @@ export class GeminiProvider implements AIProvider {
                 },
               };
 
-              // Yield progress so the UI can show "Writing file 3/8"
               yield {
                 type: 'progress',
                 progress: {
@@ -336,6 +486,8 @@ export class GeminiProvider implements AIProvider {
                 },
               };
 
+              console.log(`[gemini] Wrote file: ${filePath} (${writtenFiles.size}/${planFileTree.length})`);
+
               functionResponseParts.push({
                 functionResponse: {
                   name: 'write_file',
@@ -344,11 +496,9 @@ export class GeminiProvider implements AIProvider {
               });
             }
           } else if (fc.name === 'complete' && fc.args) {
-            // Check if there are still files to write
             const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
             
             if (agentMode === 'build' && remainingFiles.length > 0) {
-              // REJECT the complete call if files are missing
               functionResponseParts.push({
                 functionResponse: {
                   name: 'complete',
@@ -358,7 +508,6 @@ export class GeminiProvider implements AIProvider {
                   },
                 },
               });
-              // Do NOT set isComplete = true, force it to continue the loop
             } else {
               isComplete = true;
               yield { type: 'phase', phase: 'complete' };
@@ -369,40 +518,49 @@ export class GeminiProvider implements AIProvider {
                   response: { success: true },
                 },
               });
-              // Don't send function response — we're done
               break;
             }
           }
         }
 
-        // If complete was called, exit
         if (isComplete) break;
+
+        // ── Context compression (Fix 2B) ──
+        // If we've written enough new files since last compression, create a fresh session
+        if (
+          agentMode === 'build' &&
+          writtenFiles.size - lastCompressedAt >= COMPRESS_AFTER_FILES &&
+          planFileTree.filter((f) => !writtenFiles.has(f)).length > 0
+        ) {
+          compressAndResetChat();
+          const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
+          const continuationMsg = buildContinuationPrompt(remainingFiles);
+          response = await sendWithRetry({ message: continuationMsg });
+          apiCallCount++;
+          continue;
+        }
 
         // After processing all calls in this batch, check if plan is fulfilled
         if (agentMode === 'build' && planFileTree.length > 0) {
           const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
           if (remainingFiles.length === 0 && !isComplete) {
-            // All plan files written. Let's run a verification check before we allow it to complete.
             const checkResult = runChecks(generatedCodeContext, ['typecheck', 'lint', 'build']);
             
             if (!checkResult.success && checkResult.error) {
-              // Self-healing: Verification failed. We intercept the completion and force the AI to fix errors.
               const errors = checkResult.error.split('\n');
               const errorPrompt = buildErrorFixPrompt(errors);
               
               yield { type: 'text', content: `\n[Verification failed. Auto-fixing ${errors.length} errors...]\n` };
-              response = await chat.sendMessage({ message: errorPrompt });
+              response = await sendWithRetry({ message: errorPrompt });
               apiCallCount++;
               continue;
             } else {
-              // All checks passed — auto-complete
               isComplete = true;
               yield { type: 'phase', phase: 'complete' };
               break;
             }
           }
         } else if (agentMode === 'plan' && planFileTree.length > 0 && !isComplete) {
-           // We just wanted a plan, so we can auto-complete now
            isComplete = true;
            yield { type: 'phase', phase: 'complete' };
            break;
@@ -410,13 +568,14 @@ export class GeminiProvider implements AIProvider {
 
         // Send function responses and continue loop
         if (functionResponseParts.length > 0) {
-          response = await chat.sendMessage({ message: functionResponseParts });
+          response = await sendWithRetry({ message: functionResponseParts });
           apiCallCount++;
         } else {
-          // No valid function calls to respond to — break
           break;
         }
       }
+
+      console.log(`[gemini] Finished. apiCalls=${apiCallCount}, written=${writtenFiles.size}/${planFileTree.length}, complete=${isComplete}`);
 
       // Usage from last response
       const inputTokens =
@@ -428,6 +587,7 @@ export class GeminiProvider implements AIProvider {
 
       yield { type: 'done', usage: { inputTokens, outputTokens } };
     } catch (error) {
+      console.error(`[gemini] Fatal error after ${apiCallCount} API calls, ${writtenFiles.size} files written:`, error);
       yield {
         type: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',

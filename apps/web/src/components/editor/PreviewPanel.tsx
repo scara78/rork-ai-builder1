@@ -16,6 +16,7 @@ interface PreviewPanelProps {
   isBusy: boolean;
   connectedClients: number;
   snackError: string | null;
+  hasRequestedOnline: boolean;
 }
 
 export function PreviewPanel({
@@ -27,6 +28,7 @@ export function PreviewPanel({
   isBusy,
   connectedClients,
   snackError,
+  hasRequestedOnline,
 }: PreviewPanelProps) {
   const { generatingFiles } = useProjectStore();
   const { isRunning: isAgentRunning } = useAgentStore();
@@ -142,6 +144,7 @@ export function PreviewPanel({
               isBusy={isBusy}
               connectedClients={connectedClients}
               error={snackError}
+              hasRequestedOnline={hasRequestedOnline}
               className="w-full h-full"
             />
 

@@ -75,7 +75,7 @@ You have 3 tools: create_plan, write_file, and complete. You MUST follow this ex
 
 ### Step 1: create_plan (call FIRST, exactly once)
 Call create_plan with the COMPLETE list of every file the app needs. This defines your contract — you MUST write every file listed here.
-- Your plan MUST be a RICH, COMPREHENSIVE app with at least 15-20 files. Include separate components, screens, hooks, constants, and types.
+- Your plan MUST be a RICH, COMPREHENSIVE app with 10-15 files. Include separate components, screens, hooks, constants, and types.
 - Do NOT build a minimal skeleton.
 - You MUST include \`package.json\` in your plan with all required dependencies.
 - ALWAYS include: App.tsx, app/_layout.tsx, app/(tabs)/_layout.tsx, app/(tabs)/index.tsx
@@ -83,8 +83,8 @@ Call create_plan with the COMPLETE list of every file the app needs. This define
 
 ### Step 2: write_file (call for EVERY file in the plan)
 Call write_file for each file path listed in the plan. Provide COMPLETE file content every time.
-- Write a MAXIMUM of 2-3 files per response to ensure high-quality code. The system will loop and ask you to continue until all files are done.
-- Do NOT try to write all 15 files at once. Take your time, write detailed, production-ready code.
+- Write 3-5 files per response to maximize efficiency. The system will loop and ask you to continue until all files are done.
+- Do NOT try to write all files at once. Take your time, write detailed, production-ready code.
 - Continue calling write_file across multiple responses until EVERY file from the plan has been written.
 - If the system tells you files are remaining, immediately continue writing them.
 

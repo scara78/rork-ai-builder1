@@ -162,6 +162,8 @@ export function ChatPanel({ projectId, onViewCode, initialPrompt }: ChatPanelPro
                   }
                   // Final refresh signal after all files are written
                   window.dispatchEvent(new CustomEvent('project-files-changed'));
+                  // Signal editor to start Snack preview (agent finished building)
+                  window.dispatchEvent(new CustomEvent('agent-build-complete'));
                 } else if (data.type === 'error') {
                   summaryContent = `Error: ${data.error}`;
                 }

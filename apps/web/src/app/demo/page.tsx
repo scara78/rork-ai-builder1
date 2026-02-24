@@ -294,6 +294,7 @@ export default function DemoPage() {
               isBusy={snackIsBusy}
               connectedClients={snackConnectedClients}
               snackError={snackError}
+              hasRequestedOnline={true}
             />
           </div>
           
