@@ -258,8 +258,9 @@ const styles = StyleSheet.create({
 
     // Small delay to ensure iframe's contentWindow is available + clean disconnect
     setTimeout(() => {
-      console.log(`[useSnack] Going online (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1})...`);
-      try { snack.setOnline(true); } catch { /* ignore */ }
+      console.log(`[useSnack] Going online (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1}), webPreviewRef.current=${webPreviewRef.current ? 'Window' : 'NULL'}, state.online=${snack.getState().online}`);
+      try { snack.setOnline(true); } catch (err) { console.error('[useSnack] setOnline(true) threw:', err); }
+      console.log(`[useSnack] After setOnline(true): online=${snack.getState().online}, webPreviewURL=${snack.getState().webPreviewURL}`);
 
       // Start connection timeout
       connectionTimeoutRef.current = setTimeout(() => {

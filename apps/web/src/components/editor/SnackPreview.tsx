@@ -39,6 +39,9 @@ export function SnackPreview({
     const iframe = iframeRef.current;
     if (iframe) {
       webPreviewRef.current = iframe.contentWindow;
+      console.log(`[SnackPreview] webPreviewRef wired: ${iframe.contentWindow ? 'Window object' : 'NULL'}`);
+    } else {
+      console.warn('[SnackPreview] iframe ref is null on mount!');
     }
     return () => {
       webPreviewRef.current = null;
