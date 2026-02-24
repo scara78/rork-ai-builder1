@@ -135,23 +135,31 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - HeroPromptBox catch-all error now redirects to /dashboard instead of always /signup
 - runChecks `any` type check uses regex word boundary instead of false-positive substring match
 - Unused imports removed: ThinkingLevel (gemini.ts), ParsedFile (tools/index.ts), STEP_LABELS (HeroPromptBox)
+- **Snack SDK Lazy Init** (`6064bd6`): Preview no longer connects on mount. `goOnline()` called only when project has >3 files or after AI agent completes. Shows "Waiting for code..." vs "Connecting to Expo..." states via `hasRequestedOnline`.
+- **Gemini Tool Loop Resilience** (`6064bd6`):
+  - Context compression: fresh chat session after every 6 files to prevent context bloat (was: linear history growth → context exhaustion after ~11 files)
+  - Empty response tracking: resets session after 2 consecutive empties, gracefully completes after 4 total empties
+  - Retryable API errors: retries timeout/503/rate-limit up to 2 times with 3s delay (was: immediate failure)
+  - Reduced plan size from 15-20 to 10-15 files, increased batch from 2-3 to 3-5 files per response
+  - Added `[gemini]` logging for each loop iteration
 
 ## Current State
 
 - **Live site works end-to-end**: Landing prompt → signup → project created → editor → AI agent builds app → preview shows result
 - **Default model**: Gemini 3.1 Pro Preview
-- **Preview**: Expo Snack SDK powers live preview (web iframe + QR code for real device testing via Expo Go)
+- **Preview**: Expo Snack SDK powers live preview (web iframe + QR code for real device testing via Expo Go). Lazy init — connects only when code is ready.
 - **AI Prompts**: Fully rewritten for real Expo code — expo-router, @expo/vector-icons, reanimated, safe-area-context, expo-image, expo-blur, expo-haptics, AsyncStorage, CSS boxShadow
 - **Old esbuild bundler removed**: LivePreview, bundler.ts, /api/bundle, /api/stub all deleted
 - **Rork Max Upgrade**: 3D Games/AR via `@react-three/fiber` and updated AI persona
 - **Template packs**: 6 starter templates (Task Manager, Weather Dashboard, Fitness Tracker, Recipe Book, Expense Tracker, Smart Notes) with category filtering on dashboard. Selecting a template creates a project and auto-sends a detailed AI prompt.
 - **Conversation persistence**: Agent API saves messages to DB; editor restores them on reload
-- **Latest tested**: Build passes, type-check passes, all routes compile
+- **Gemini resilience**: Context compression + empty response recovery + API retry ensures all plan files get written
+- **Latest tested**: Build passes, type-check passes, all 18 routes compile
 
 ## Remaining Work (Not Started)
 
 - Configure OAuth providers (Google/GitHub) in Supabase dashboard (user action)
-- Test Snack SDK preview end-to-end on production with AI-generated Expo apps
+- Test Snack SDK lazy init + Gemini resilience end-to-end on production with AI-generated Expo apps
 - (Low priority / future) Add `ANTHROPIC_API_KEY` to Vercel for optional Claude model support — Gemini is the default and only active model
 
 ---
