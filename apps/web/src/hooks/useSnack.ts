@@ -151,6 +151,7 @@ const styles = StyleSheet.create({
     if (unsubscribeRef.current) unsubscribeRef.current();
     const unsub = snack.addStateListener((state, prevState) => {
       if (state.webPreviewURL !== prevState.webPreviewURL) {
+        console.log(`[useSnack] webPreviewURL changed: ${prevState.webPreviewURL} → ${state.webPreviewURL}`);
         setWebPreviewURL(state.webPreviewURL);
         // Got a preview URL — clear connection timeout + retry state
         if (state.webPreviewURL) {
@@ -162,14 +163,17 @@ const styles = StyleSheet.create({
         }
       }
       if (state.url !== prevState.url) {
+        console.log(`[useSnack] expoURL changed: ${state.url}`);
         setExpoURL(state.url);
       }
       const clientCount = Object.keys(state.connectedClients).length;
       const prevClientCount = Object.keys(prevState.connectedClients).length;
       if (clientCount !== prevClientCount) {
+        console.log(`[useSnack] connectedClients: ${prevClientCount} → ${clientCount}`);
         setConnectedClients(clientCount);
       }
       if (state.online !== prevState.online) {
+        console.log(`[useSnack] online: ${prevState.online} → ${state.online}`);
         setIsOnline(state.online);
       }
 
@@ -177,6 +181,7 @@ const styles = StyleSheet.create({
       if (state.dependencies !== prevState.dependencies) {
         const depError = collectDepErrors(state);
         if (depError) {
+          console.warn(`[useSnack] Dependency errors detected:`, depError);
           setError(depError);
           if (busyTimeoutRef.current) {
             clearTimeout(busyTimeoutRef.current);
@@ -189,6 +194,7 @@ const styles = StyleSheet.create({
       const busy = computeIsBusy(state);
       const prevBusy = computeIsBusy(prevState);
       if (busy !== prevBusy) {
+        console.log(`[useSnack] isBusy: ${prevBusy} → ${busy}`);
         setIsBusy(busy);
         if (busy) {
           busyTimeoutRef.current = setTimeout(() => {
@@ -234,70 +240,60 @@ const styles = StyleSheet.create({
   }, [ensureSnackInstance]);
 
   /**
-   * Go online — call this ONLY when there are real files to preview.
-   * Includes retry logic: if connection fails (no webPreviewURL after 20s),
-   * retries up to 3 times with exponential backoff.
+   * Internal: attempt to go online with retry logic.
+   * Does NOT reset retryCountRef — that's the caller's responsibility.
    */
-  const goOnline = useCallback(() => {
-    setHasRequestedOnline(true);
-    setError(null);
-
+  const attemptOnline = useCallback(() => {
     const snack = ensureSnackInstance();
 
-    // If already online and has a preview URL, nothing to do
+    // Already connected — nothing to do
     if (snack.getState().webPreviewURL) return;
 
-    // Small delay to ensure iframe's contentWindow is available
-    setTimeout(() => {
-      snack.setOnline(true);
+    // Clear any pending timers from previous attempts
+    if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
 
-      // Start connection timeout — if no preview URL after 20s, retry or error
-      if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+    // Force a clean reconnection: offline first, then online
+    try { snack.setOnline(false); } catch { /* ignore */ }
+
+    // Small delay to ensure iframe's contentWindow is available + clean disconnect
+    setTimeout(() => {
+      console.log(`[useSnack] Going online (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1})...`);
+      try { snack.setOnline(true); } catch { /* ignore */ }
+
+      // Start connection timeout
       connectionTimeoutRef.current = setTimeout(() => {
         const state = snack.getState();
-        if (state.webPreviewURL) return; // Connected successfully
+        if (state.webPreviewURL) return; // Connected successfully during wait
 
         const attempt = retryCountRef.current;
         if (attempt < RETRY_DELAYS.length) {
-          // Retry with backoff
-          console.log(`[useSnack] Connection attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+          console.log(`[useSnack] No preview URL after 20s. Retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 2}/${RETRY_DELAYS.length + 1})...`);
           retryCountRef.current = attempt + 1;
 
-          // Go offline, wait, then go back online
-          snack.setOnline(false);
+          // Go offline, wait, then try again
+          try { snack.setOnline(false); } catch { /* ignore */ }
           retryTimerRef.current = setTimeout(() => {
             setError(null);
-            snack.setOnline(true);
-
-            // Set up next timeout check
-            connectionTimeoutRef.current = setTimeout(() => {
-              const retryState = snack.getState();
-              if (!retryState.webPreviewURL) {
-                // Recursively check for more retries
-                const nextAttempt = retryCountRef.current;
-                if (nextAttempt < RETRY_DELAYS.length) {
-                  retryCountRef.current = nextAttempt + 1;
-                  snack.setOnline(false);
-                  retryTimerRef.current = setTimeout(() => {
-                    snack.setOnline(true);
-                    connectionTimeoutRef.current = setTimeout(() => {
-                      if (!snack.getState().webPreviewURL) {
-                        setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
-                      }
-                    }, 20_000);
-                  }, RETRY_DELAYS[nextAttempt] || 15000);
-                } else {
-                  setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
-                }
-              }
-            }, 20_000);
+            attemptOnline();
           }, RETRY_DELAYS[attempt]);
         } else {
           setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
         }
       }, 20_000);
-    }, 150);
+    }, 200);
   }, [ensureSnackInstance]);
+
+  /**
+   * Go online — call this when there are real files to preview.
+   * Resets retry counter so user-triggered retries get fresh attempts.
+   */
+  const goOnline = useCallback(() => {
+    setHasRequestedOnline(true);
+    setError(null);
+    retryCountRef.current = 0;
+    attemptOnline();
+  }, [attemptOnline]);
 
   /**
    * Update files in the Snack.
