@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { Sparkles, Zap, Folder, ArrowRight } from 'lucide-react';
+import { Sparkles, Zap, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { CreateProjectButton } from '@/components/dashboard/CreateProjectButton';
 import { ProjectCard } from '@/components/dashboard/ProjectCard';
 import { PendingPromptHandler } from '@/components/dashboard/PendingPromptHandler';
+import { TemplateGrid } from '@/components/dashboard/TemplateGrid';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
       </section>
 
       {!hasProjects && (
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Link href="/demo" className="group rounded-2xl border border-border bg-card p-6 transition-colors hover:bg-accent">
             <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-violet-400/35 bg-violet-500/10 text-violet-300">
               <Sparkles className="h-5 w-5" />
@@ -52,32 +53,26 @@ export default async function DashboardPage() {
               <CreateProjectButton variant="secondary" />
             </div>
           </div>
-
-          <div className="rounded-2xl border border-dashed border-border bg-secondary p-6">
-            <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-sky-400/35 bg-sky-500/10 text-sky-300">
-              <Folder className="h-5 w-5" />
-            </div>
-            <h3 className="text-base font-semibold">Template packs</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Starter kits for e-commerce, social, fitness, and productivity apps.</p>
-            <p className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Coming soon</p>
-          </div>
         </section>
       )}
 
+      {/* Template packs — always visible */}
+      <TemplateGrid />
+
       {hasProjects ? (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {projects!.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
+        <section>
+          <h2 className="mb-4 text-lg font-semibold">Your projects</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {projects!.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </div>
         </section>
       ) : (
-        <section className="rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-secondary">
-            <Folder className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <h2 className="mt-4 text-xl font-semibold">No projects yet</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Create your first project to open the editor and start generating code.</p>
-          <div className="mt-6">
+        <section className="rounded-2xl border border-dashed border-border bg-card px-6 py-12 text-center">
+          <h2 className="text-lg font-semibold">No projects yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Pick a template above or create a blank project to get started.</p>
+          <div className="mt-5">
             <CreateProjectButton />
           </div>
         </section>

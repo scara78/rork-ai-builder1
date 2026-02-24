@@ -144,16 +144,15 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - **AI Prompts**: Fully rewritten for real Expo code — expo-router, @expo/vector-icons, reanimated, safe-area-context, expo-image, expo-blur, expo-haptics, AsyncStorage, CSS boxShadow
 - **Old esbuild bundler removed**: LivePreview, bundler.ts, /api/bundle, /api/stub all deleted
 - **Rork Max Upgrade**: 3D Games/AR via `@react-three/fiber` and updated AI persona
-- **Latest tested**: Build passes, type-check passes, all 17 routes compile
+- **Template packs**: 6 starter templates (Task Manager, Weather Dashboard, Fitness Tracker, Recipe Book, Expense Tracker, Smart Notes) with category filtering on dashboard. Selecting a template creates a project and auto-sends a detailed AI prompt.
+- **Conversation persistence**: Agent API saves messages to DB; editor restores them on reload
+- **Latest tested**: Build passes, type-check passes, all routes compile
 
 ## Remaining Work (Not Started)
 
-- Template packs — populate "Coming soon" dashboard section with starter templates (Todo, Weather, Chat app)
 - Configure OAuth providers (Google/GitHub) in Supabase dashboard (user action)
 - Add `ANTHROPIC_API_KEY` to Vercel for Claude model support (user action)
-- Add conversation persistence — reload editor should restore chat history from DB
 - Test Snack SDK preview end-to-end on production with AI-generated Expo apps
-- Consider upgrading useSnack to handle `package.json` dependencies from AI output (parse package.json → call `snack.updateDependencies()`)
 
 ---
 
@@ -178,6 +177,8 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
 - `apps/web/src/hooks/useSnack.ts` — Snack SDK session management hook
 - `apps/web/src/components/landing/HeroPromptBox.tsx` — landing prompt box
 - `apps/web/src/components/dashboard/PendingPromptHandler.tsx` — auto-creates project from saved prompt
+- `apps/web/src/components/dashboard/TemplateGrid.tsx` — template browsing UI with category filters
+- `apps/web/src/lib/templates.ts` — template data (6 templates with prompts, icons, categories)
 
 ### Stores
 - `apps/web/src/stores/projectStore.ts` — project state (files, messages, selectedModel='gemini')
