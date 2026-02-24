@@ -21,7 +21,7 @@ const COMPRESS_AFTER_FILES = 6;
 const MAX_CONSECUTIVE_EMPTY = 2;
 
 // Total empty responses across all session resets before giving up
-const MAX_TOTAL_EMPTY = 4;
+const MAX_TOTAL_EMPTY = 8;
 
 // Max retries for transient API errors (timeout, 503, rate limit)
 const MAX_API_RETRIES = 2;
@@ -132,38 +132,50 @@ const ALL_TOOLS = [
 
 function buildContinuationPrompt(remainingFiles: string[]): string {
   return [
-    `You have NOT finished writing all files yet. The following ${remainingFiles.length} file(s) from the plan have NOT been written:`,
+    `CRITICAL: You have NOT finished writing all files yet. The following ${remainingFiles.length} file(s) from the plan have NOT been written:`,
     '',
     ...remainingFiles.map((f) => `- ${f}`),
     '',
-    'Continue by calling write_file for 3-5 of these files. We will loop until all files are written. Do NOT try to write all of them at once.',
-    'Do NOT stop or explain — just call write_file immediately.',
+    'You MUST call write_file for 3-5 of these files RIGHT NOW.',
+    'Do NOT output any text. Do NOT explain. Do NOT apologize. ONLY call write_file.',
+    'If you do not call write_file, the build will fail and the user will see an incomplete app.',
   ].join('\n');
 }
 
 /**
- * Build a compressed summary of written files for context compression.
- * Instead of keeping the full file content in history, we summarize what was written.
+ * Build a compressed summary for context compression.
+ * Includes the original user request + plan + what's been written + what remains,
+ * so the fresh chat session has enough context to continue generating files.
  */
 function buildCompressedContext(
   writtenFiles: Set<string>,
-  planData: { appName: string; fileTree: string[] } | null,
+  planData: { appName: string; appType?: string; features?: string[]; fileTree: string[]; dependencies?: string[] } | null,
   remainingFiles: string[],
+  originalPrompt: string,
 ): string {
   const written = Array.from(writtenFiles);
   return [
-    `=== SESSION CONTEXT (compressed) ===`,
-    planData ? `App: ${planData.appName}` : '',
-    planData ? `Plan: ${planData.fileTree.length} total files` : '',
-    `Already written (${written.length}): ${written.join(', ')}`,
-    remainingFiles.length > 0
-      ? `Remaining (${remainingFiles.length}): ${remainingFiles.join(', ')}`
-      : 'All files written.',
+    `=== CONTINUATION SESSION ===`,
+    `You are continuing to build an app. The plan was already created and some files have been written.`,
+    '',
+    `## Original User Request`,
+    originalPrompt.length > 500 ? originalPrompt.slice(0, 500) + '...' : originalPrompt,
+    '',
+    planData ? `## Plan` : '',
+    planData ? `App: ${planData.appName} (${planData.appType || 'general'})` : '',
+    planData?.features?.length ? `Features: ${planData.features.join(', ')}` : '',
+    planData?.dependencies?.length ? `Dependencies: ${planData.dependencies.join(', ')}` : '',
+    planData ? `Total files in plan: ${planData.fileTree.length}` : '',
+    '',
+    `## Already Written (${written.length} files — do NOT rewrite these)`,
+    ...written.map((f) => `- ${f}`),
+    '',
+    `## Remaining Files (${remainingFiles.length} — you MUST write these)`,
+    ...remainingFiles.map((f) => `- ${f}`),
+    '',
     `=== END CONTEXT ===`,
     '',
-    remainingFiles.length > 0
-      ? `Continue writing the remaining ${remainingFiles.length} files. Call write_file for 3-5 of them now.`
-      : '',
+    `IMPORTANT: Call write_file immediately for 3-5 of the remaining files. Do NOT output text — only call write_file.`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -322,14 +334,22 @@ export class GeminiProvider implements AIProvider {
 
     /**
      * Create a fresh chat session with compressed context.
-     * Replaces the accumulated history with a short summary.
+     * Replaces the accumulated history with a rich summary so the model
+     * knows what app it's building and what files remain.
      */
     const compressAndResetChat = (): void => {
       const remainingFiles = planFileTree.filter((f) => !writtenFiles.has(f));
       const summary = buildCompressedContext(
         writtenFiles,
-        planData ? { appName: planData.appName || 'App', fileTree: planFileTree } : null,
+        planData ? {
+          appName: planData.appName || 'App',
+          appType: planData.appType || 'general',
+          features: planData.features || [],
+          fileTree: planFileTree,
+          dependencies: planData.dependencies || [],
+        } : null,
         remainingFiles,
+        userContent,
       );
 
       console.log(`[gemini] Compressing context: ${writtenFiles.size} written, ${remainingFiles.length} remaining. Creating fresh chat session.`);
@@ -338,7 +358,6 @@ export class GeminiProvider implements AIProvider {
         ...chatConfig,
         history: [
           { role: 'user', parts: [{ text: summary }] },
-          { role: 'model', parts: [{ text: 'Understood. I will continue writing the remaining files now.' }] },
         ],
       });
       lastCompressedAt = writtenFiles.size;
@@ -461,9 +480,9 @@ export class GeminiProvider implements AIProvider {
                 },
               });
             }
-          } else if (fc.name === 'write_file' && fc.args) {
-            const args = fc.args as { path: string; content: string };
-            if (args.path && args.content) {
+          } else if (fc.name === 'write_file') {
+            const args = fc.args as { path?: string; content?: string } | null;
+            if (args?.path && args?.content) {
               const filePath = args.path.trim().replace(/^\/+/, '');
               writtenFiles.add(filePath);
               generatedCodeContext[filePath] = args.content;
@@ -492,6 +511,20 @@ export class GeminiProvider implements AIProvider {
                 functionResponse: {
                   name: 'write_file',
                   response: { success: true, message: `File written: ${filePath}` },
+                },
+              });
+            } else {
+              // Model called write_file with empty/missing path or content — this is a degenerate response.
+              // We still need to send a function response so the loop doesn't break.
+              console.log(`[gemini] write_file called with empty args: path=${args?.path}, content length=${args?.content?.length ?? 0}`);
+              const remaining = planFileTree.filter((f) => !writtenFiles.has(f));
+              functionResponseParts.push({
+                functionResponse: {
+                  name: 'write_file',
+                  response: {
+                    success: false,
+                    error: `write_file was called with empty path or content. You still have ${remaining.length} files to write: ${remaining.join(', ')}. Call write_file again with the correct path and COMPLETE file content.`,
+                  },
                 },
               });
             }
