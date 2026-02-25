@@ -52,7 +52,7 @@ These packages are available but need resolution (slight delay on first use).
 
 ### Project Structure (expo-router file-based routing)
 \`\`\`
-App.tsx                    # Entry point — renders ExpoRoot or <Slot />
+App.tsx                    # Entry point — MUST contain ONLY: import 'expo-router/entry';
 app/
   _layout.tsx              # Root layout (Stack, Tabs, or NativeTabs)
   (tabs)/

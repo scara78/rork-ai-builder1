@@ -351,6 +351,45 @@ const styles = StyleSheet.create({
       };
     }
 
+    // Safety net: ensure App.tsx contains `import 'expo-router/entry'` when
+    // the project uses file-based routing (has files in app/ directory).
+    // The Snack runtime detects this import via regex and switches to expo-router mode.
+    // Without it, the app/ directory is ignored and the screen is blank.
+    const EXPO_ROUTER_ENTRY_REGEX = /import\s.*expo-router\/entry/i;
+    const appTsx = snackFiles['App.tsx'];
+    if (appTsx && appTsx.contents && typeof appTsx.contents === 'string') {
+      if (!EXPO_ROUTER_ENTRY_REGEX.test(appTsx.contents)) {
+        // Check if there are app/ directory files in this batch or already in Snack state
+        const hasAppDirInBatch = Object.keys(snackFiles).some(p => p.startsWith('app/'));
+        const hasAppDirInState = Object.keys(snack.getState().files).some(p => p.startsWith('app/'));
+        if (hasAppDirInBatch || hasAppDirInState) {
+          console.log('[useSnack] App.tsx missing expo-router/entry import — injecting correct entry point');
+          snackFiles['App.tsx'] = {
+            type: 'CODE',
+            contents: `import 'expo-router/entry';`,
+          };
+        }
+      }
+    }
+
+    // Also check: if app/ files arrive but App.tsx isn't in this batch,
+    // check existing App.tsx in Snack state and fix if needed
+    if (!snackFiles['App.tsx']) {
+      const hasAppDirInBatch = Object.keys(snackFiles).some(p => p.startsWith('app/'));
+      if (hasAppDirInBatch) {
+        const existingAppTsx = snack.getState().files['App.tsx'];
+        if (existingAppTsx && existingAppTsx.type === 'CODE' &&
+            typeof existingAppTsx.contents === 'string' &&
+            !EXPO_ROUTER_ENTRY_REGEX.test(existingAppTsx.contents)) {
+          console.log('[useSnack] app/ files arrived but existing App.tsx missing expo-router/entry — fixing');
+          snackFiles['App.tsx'] = {
+            type: 'CODE',
+            contents: `import 'expo-router/entry';`,
+          };
+        }
+      }
+    }
+
     if (Object.keys(snackFiles).length > 0) {
       snack.updateFiles(snackFiles);
     }

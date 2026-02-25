@@ -85,6 +85,15 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
   - Phase 2: After first client connects (via `addStateListener` watching `connectedClients`), add non-preloaded deps from package.json — initial render is already done so isBusy doesn't block anything visible
   - Added 5-second grace period iframe reload (ONCE only, not looping) as fallback for lost CONNECT messages
 
+### Snack Preview White/Blank Screen (FIXED)
+- **Root cause**: Snack web player has TWO code paths for loading the entry point (App.tsx):
+  1. **expo-router mode**: If `App.tsx` content matches regex `/import.*expo-router\/entry/i`, the runtime creates a virtual `require.context` for the `app/` directory and renders `<ExpoRoot context={ctx} />`. This makes file-based routing work.
+  2. **Normal mode**: Otherwise, it renders `App.tsx`'s default export as a plain React component. The `app/` directory files are completely ignored.
+- The AI prompt said "renders ExpoRoot or `<Slot />`" but gave NO concrete App.tsx example. The AI was likely generating `export default function App() { ... }` with expo-router imports — which takes the **normal mode** path, rendering a broken component that can't find routes.
+- **Fix (prompt)**: All prompt references to App.tsx now explicitly state it MUST contain ONLY `import 'expo-router/entry';` — no default export, no other code.
+- **Fix (safety net)**: `useSnack.updateFiles()` now validates App.tsx content — if it doesn't contain the expo-router/entry import but there are `app/` directory files, it auto-injects the correct entry point.
+- `expo-router/entry` is a bundled module (preloaded, no Snackager delay) that resolves to a no-op function — its only purpose is as a signal for the Snack runtime regex detector.
+
 ---
 
 ## Accomplished (All Completed)
@@ -142,6 +151,7 @@ Build and ship a **Rork-like AI Mobile App Builder** — a web tool where users 
   - Retryable API errors: retries timeout/503/rate-limit up to 2 times with 3s delay (was: immediate failure)
   - Reduced plan size from 15-20 to 10-15 files, increased batch from 2-3 to 3-5 files per response
   - Added `[gemini]` logging for each loop iteration
+- **App.tsx expo-router/entry Fix**: White screen caused by Snack runtime's dual code path — App.tsx must contain `import 'expo-router/entry';` for expo-router mode. AI prompts updated with explicit instruction. `useSnack.updateFiles()` now auto-injects correct entry point as safety net.
 
 ## Current State
 

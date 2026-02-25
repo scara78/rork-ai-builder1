@@ -282,7 +282,7 @@ export const ROUTE_STRUCTURE = `## Project Structure for expo-router
 
 ### Standard App with Tabs + Stack
 \`\`\`
-App.tsx                        — Entry point (re-exports expo-router entry)
+App.tsx                        — Entry point (MUST contain ONLY: import 'expo-router/entry';)
 app/
   _layout.tsx                  — Root Stack layout
   (tabs)/
