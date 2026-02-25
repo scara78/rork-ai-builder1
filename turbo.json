@@ -10,7 +10,11 @@
         "GOOGLE_GENERATIVE_AI_API_KEY",
         "NEXT_PUBLIC_SUPABASE_URL",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-        "NEXT_PUBLIC_APP_URL"
+        "NEXT_PUBLIC_APP_URL",
+        "AI_MODEL",
+        "AI_PROVIDER",
+        "CLAUDE_API_KEY",
+        "ANTHROPIC_API_KEY"
       ]
     },
     "dev": {
