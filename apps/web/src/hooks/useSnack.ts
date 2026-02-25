@@ -151,7 +151,6 @@ const styles = StyleSheet.create({
     if (unsubscribeRef.current) unsubscribeRef.current();
     const unsub = snack.addStateListener((state, prevState) => {
       if (state.webPreviewURL !== prevState.webPreviewURL) {
-        console.log(`[useSnack] webPreviewURL changed: ${prevState.webPreviewURL} → ${state.webPreviewURL}`);
         setWebPreviewURL(state.webPreviewURL);
         // Got a preview URL — clear connection timeout + retry state
         if (state.webPreviewURL) {
@@ -163,17 +162,15 @@ const styles = StyleSheet.create({
         }
       }
       if (state.url !== prevState.url) {
-        console.log(`[useSnack] expoURL changed: ${state.url}`);
         setExpoURL(state.url);
       }
       const clientCount = Object.keys(state.connectedClients).length;
       const prevClientCount = Object.keys(prevState.connectedClients).length;
       if (clientCount !== prevClientCount) {
-        console.log(`[useSnack] connectedClients: ${prevClientCount} → ${clientCount}`);
         setConnectedClients(clientCount);
       }
       if (state.online !== prevState.online) {
-        console.log(`[useSnack] online: ${prevState.online} → ${state.online}`);
+        console.log(`[useSnack] online: ${state.online}`);
         setIsOnline(state.online);
       }
 
@@ -181,7 +178,7 @@ const styles = StyleSheet.create({
       if (state.dependencies !== prevState.dependencies) {
         const depError = collectDepErrors(state);
         if (depError) {
-          console.warn(`[useSnack] Dependency errors detected:`, depError);
+          console.warn(`[useSnack] Dependency errors:`, depError);
           setError(depError);
           if (busyTimeoutRef.current) {
             clearTimeout(busyTimeoutRef.current);
@@ -194,7 +191,6 @@ const styles = StyleSheet.create({
       const busy = computeIsBusy(state);
       const prevBusy = computeIsBusy(prevState);
       if (busy !== prevBusy) {
-        console.log(`[useSnack] isBusy: ${prevBusy} → ${busy}`);
         setIsBusy(busy);
         if (busy) {
           busyTimeoutRef.current = setTimeout(() => {
@@ -220,7 +216,6 @@ const styles = StyleSheet.create({
     // Sync initial state — webPreviewURL may already exist from Snack init
     const initState = snack.getState();
     if (initState.webPreviewURL) {
-      console.log(`[useSnack] Initial webPreviewURL: ${initState.webPreviewURL}`);
       setWebPreviewURL(initState.webPreviewURL);
     }
     if (initState.url) setExpoURL(initState.url);
@@ -253,14 +248,11 @@ const styles = StyleSheet.create({
    * Does NOT reset retryCountRef — that's the caller's responsibility.
    */
   const attemptOnline = useCallback(() => {
-    console.log('[useSnack] attemptOnline() entered');
     const snack = ensureSnackInstance();
-    console.log(`[useSnack] attemptOnline() snack=${snack ? 'exists' : 'NULL'}, webPreviewURL=${snack?.getState().webPreviewURL}, online=${snack?.getState().online}`);
 
     // Already fully connected — nothing to do
     const currentState = snack.getState();
     if (currentState.online && currentState.webPreviewURL) {
-      console.log('[useSnack] attemptOnline() early return — already online with webPreviewURL');
       return;
     }
 
@@ -280,17 +272,21 @@ const styles = StyleSheet.create({
     const doGoOnline = () => {
       console.log(`[useSnack] Going online (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1}), webPreviewRef.current=${webPreviewRef.current ? 'Window' : 'NULL'}, state.online=${snack.getState().online}`);
       try { snack.setOnline(true); } catch (err) { console.error('[useSnack] setOnline(true) threw:', err); }
-      console.log(`[useSnack] After setOnline(true): online=${snack.getState().online}`);
+      // After setOnline(true) completes
 
-      // Start connection timeout — if no connectedClients after 20s, retry
+      // Start connection timeout — if still not online after 20s, retry
       connectionTimeoutRef.current = setTimeout(() => {
         const state = snack.getState();
-        // If online and has connected clients, we're good
-        if (state.online && Object.keys(state.connectedClients).length > 0) return;
+        // If online, we're good — web preview doesn't count as connectedClient,
+        // only physical devices via Expo Go do
+        if (state.online) {
+          console.log('[useSnack] Connection confirmed: online=true');
+          return;
+        }
 
         const attempt = retryCountRef.current;
         if (attempt < RETRY_DELAYS.length) {
-          console.log(`[useSnack] No connected clients after 20s. Retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 2}/${RETRY_DELAYS.length + 1})...`);
+          console.log(`[useSnack] Still not online after 20s. Retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 2}/${RETRY_DELAYS.length + 1})...`);
           retryCountRef.current = attempt + 1;
 
           try { snack.setOnline(false); } catch { /* ignore */ }
