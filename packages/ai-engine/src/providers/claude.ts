@@ -25,7 +25,7 @@ const WRITE_FILE_TOOL = {
   },
 };
 
-export class OpenRouterProvider implements AIProvider {
+export class ClaudeProvider implements AIProvider {
   name = 'openrouter';
   displayName = 'OpenRouter (Multi-Model)';
   
