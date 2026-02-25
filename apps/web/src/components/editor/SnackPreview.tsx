@@ -70,7 +70,7 @@ export function SnackPreview({
 
   // Track "connecting too long" state — only after goOnline() has been called
   useEffect(() => {
-    if (hasRequestedOnline && !webPreviewURL && !snackError) {
+    if (hasRequestedOnline && !isOnline && !snackError) {
       connectingTimerRef.current = setTimeout(() => {
         setConnectingTooLong(true);
       }, 15_000);
@@ -86,7 +86,7 @@ export function SnackPreview({
         clearTimeout(connectingTimerRef.current);
       }
     };
-  }, [hasRequestedOnline, webPreviewURL, snackError]);
+  }, [hasRequestedOnline, isOnline, snackError]);
 
   // Listen for messages from the Snack web player
   useEffect(() => {
@@ -168,8 +168,9 @@ export function SnackPreview({
 
   return (
     <div className={`relative w-full h-full ${className || ''}`}>
-      {/* Status overlay — waiting for AI or connecting to Expo */}
-      {!webPreviewURL && !displayError && (
+      {/* Status overlay — waiting for AI or connecting to Expo.
+          webPreviewURL always exists (Snack SDK creates it at init), so we check isOnline instead. */}
+      {!isOnline && !displayError && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0a] z-10">
           <div className="text-center text-gray-500 p-8">
             {!hasRequestedOnline ? (
@@ -217,8 +218,8 @@ export function SnackPreview({
         </div>
       )}
 
-      {/* Error overlay — shown when Snack has an error and no preview URL */}
-      {displayError && !webPreviewURL && (
+      {/* Error overlay — shown when Snack has an error while not yet online */}
+      {displayError && !isOnline && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/20 z-10 m-3 border border-red-500/30 rounded-xl">
           <div className="text-center p-6 max-w-2xl w-full">
             <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-4" />

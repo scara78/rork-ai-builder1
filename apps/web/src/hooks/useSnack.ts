@@ -217,6 +217,15 @@ const styles = StyleSheet.create({
     unsubscribeRef.current = unsub;
     isInitializedRef.current = true;
 
+    // Sync initial state — webPreviewURL may already exist from Snack init
+    const initState = snack.getState();
+    if (initState.webPreviewURL) {
+      console.log(`[useSnack] Initial webPreviewURL: ${initState.webPreviewURL}`);
+      setWebPreviewURL(initState.webPreviewURL);
+    }
+    if (initState.url) setExpoURL(initState.url);
+    if (initState.online) setIsOnline(initState.online);
+
     return snack;
   }, [webPreviewRef]);
 
@@ -248,9 +257,10 @@ const styles = StyleSheet.create({
     const snack = ensureSnackInstance();
     console.log(`[useSnack] attemptOnline() snack=${snack ? 'exists' : 'NULL'}, webPreviewURL=${snack?.getState().webPreviewURL}, online=${snack?.getState().online}`);
 
-    // Already connected — nothing to do
-    if (snack.getState().webPreviewURL) {
-      console.log('[useSnack] attemptOnline() early return — already has webPreviewURL');
+    // Already fully connected — nothing to do
+    const currentState = snack.getState();
+    if (currentState.online && currentState.webPreviewURL) {
+      console.log('[useSnack] attemptOnline() early return — already online with webPreviewURL');
       return;
     }
 
