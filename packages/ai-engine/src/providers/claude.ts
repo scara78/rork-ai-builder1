@@ -26,8 +26,8 @@ const WRITE_FILE_TOOL = {
 };
 
 export class ClaudeProvider implements AIProvider {
-  name = 'openrouter';
-  displayName = 'OpenRouter (Multi-Model)';
+  name = 'claude';
+  displayName = 'OpenRouter (Gemini)';
   
   private apiKey: string;
   private defaultModel: string;
@@ -35,7 +35,6 @@ export class ClaudeProvider implements AIProvider {
   
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    // Prioritizează modelul din ENV, altfel fallback pe Gemini 2.0 Flash
     this.defaultModel = process.env.AI_MODEL || 'google/gemini-2.0-flash-001';
   }
   
@@ -47,9 +46,10 @@ export class ClaudeProvider implements AIProvider {
       conversationHistory = [],
       maxTokens = 16384,
       images = [],
-      // Permite suprascrierea modelului per apel dacă este trimis în params
-      model = this.defaultModel, 
     } = params;
+    
+    // Cast la 'any' pentru a extrage modelul fără eroare de build
+    const model = (params as any).model || this.defaultModel;
     
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
     let messages = this.buildMessages(prompt, conversationHistory, currentFiles, images);
@@ -72,7 +72,6 @@ export class ClaudeProvider implements AIProvider {
           messages: [{ role: 'system', content: fullSystemPrompt }, ...messages],
           tools: [WRITE_FILE_TOOL],
           max_tokens: maxTokens,
-          tool_choice: 'auto'
         }),
       });
 
@@ -86,8 +85,7 @@ export class ClaudeProvider implements AIProvider {
       if (message.content) fullText += message.content;
 
       if (message.tool_calls) {
-        messages.push(message); // Adaugă răspunsul asistentului cu tool_calls
-        
+        messages.push(message);
         for (const toolCall of message.tool_calls) {
           if (toolCall.function.name === 'write_file') {
             const input = JSON.parse(toolCall.function.arguments);
@@ -121,9 +119,9 @@ export class ClaudeProvider implements AIProvider {
       conversationHistory = [],
       maxTokens = 16384,
       images = [],
-      model = this.defaultModel,
     } = params;
     
+    const model = (params as any).model || this.defaultModel;
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
     const messages = this.buildMessages(prompt, conversationHistory, currentFiles, images);
     
@@ -159,17 +157,17 @@ export class ClaudeProvider implements AIProvider {
 
         for (const line of lines) {
           const cleanLine = line.replace(/^data: /, '').trim();
-          if (cleanLine === '[DONE]') continue;
+          if (cleanLine === '[DONE]' || !cleanLine) continue;
           
           try {
             const json = JSON.parse(cleanLine);
             const delta = json.choices[0].delta;
 
-            if (delta.content) {
+            if (delta?.content) {
               yield { type: 'text', content: delta.content };
             }
 
-            if (delta.tool_calls) {
+            if (delta?.tool_calls) {
               isCollectingTool = true;
               toolArguments += delta.tool_calls[0].function.arguments || "";
             }
@@ -187,7 +185,7 @@ export class ClaudeProvider implements AIProvider {
               isCollectingTool = false;
               toolArguments = "";
             }
-          } catch (e) { /* Ignoră chunk-uri parțiale */ }
+          } catch (e) { /* Chunk fragmentat */ }
         }
       }
       yield { type: 'done', usage: { inputTokens: 0, outputTokens: 0 } };
