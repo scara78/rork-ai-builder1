@@ -9,7 +9,7 @@ import type {
 import { getLanguageFromPath, runChecks } from '../tools';
 import { FULL_SYSTEM_PROMPT } from '../prompts';
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_MODEL = 'gemini-flash-latest';
 
 // Maximum number of API calls to prevent infinite loops / runaway costs
 const MAX_API_CALLS = 100;
