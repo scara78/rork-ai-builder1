@@ -271,23 +271,28 @@ const styles = StyleSheet.create({
     // Force a clean reconnection: offline first, then online
     try { snack.setOnline(false); } catch (err) { console.error('[useSnack] setOnline(false) threw:', err); }
 
-    // Small delay to ensure iframe's contentWindow is available + clean disconnect
-    setTimeout(() => {
+    // Wait for webPreviewRef to be wired (iframe contentWindow).
+    // Snack SDK needs this ref BEFORE setOnline(true) so it knows where to send code.
+    // SnackPreview mounts asynchronously (dynamic import), so we poll.
+    let pollCount = 0;
+    const MAX_POLLS = 50; // 50 * 100ms = 5s max wait
+
+    const doGoOnline = () => {
       console.log(`[useSnack] Going online (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1}), webPreviewRef.current=${webPreviewRef.current ? 'Window' : 'NULL'}, state.online=${snack.getState().online}`);
       try { snack.setOnline(true); } catch (err) { console.error('[useSnack] setOnline(true) threw:', err); }
-      console.log(`[useSnack] After setOnline(true): online=${snack.getState().online}, webPreviewURL=${snack.getState().webPreviewURL}`);
+      console.log(`[useSnack] After setOnline(true): online=${snack.getState().online}`);
 
-      // Start connection timeout
+      // Start connection timeout — if no connectedClients after 20s, retry
       connectionTimeoutRef.current = setTimeout(() => {
         const state = snack.getState();
-        if (state.webPreviewURL) return; // Connected successfully during wait
+        // If online and has connected clients, we're good
+        if (state.online && Object.keys(state.connectedClients).length > 0) return;
 
         const attempt = retryCountRef.current;
         if (attempt < RETRY_DELAYS.length) {
-          console.log(`[useSnack] No preview URL after 20s. Retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 2}/${RETRY_DELAYS.length + 1})...`);
+          console.log(`[useSnack] No connected clients after 20s. Retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 2}/${RETRY_DELAYS.length + 1})...`);
           retryCountRef.current = attempt + 1;
 
-          // Go offline, wait, then try again
           try { snack.setOnline(false); } catch { /* ignore */ }
           retryTimerRef.current = setTimeout(() => {
             setError(null);
@@ -297,7 +302,22 @@ const styles = StyleSheet.create({
           setError('Could not connect to Expo preview server after multiple attempts. Check your internet connection and try refreshing.');
         }
       }, 20_000);
-    }, 200);
+    };
+
+    const pollForRef = () => {
+      pollCount++;
+      if (webPreviewRef.current) {
+        doGoOnline();
+      } else if (pollCount < MAX_POLLS) {
+        setTimeout(pollForRef, 100);
+      } else {
+        console.warn(`[useSnack] webPreviewRef still NULL after ${MAX_POLLS * 100}ms — going online anyway`);
+        doGoOnline();
+      }
+    };
+
+    // Start polling (first check after 100ms)
+    setTimeout(pollForRef, 100);
   }, [ensureSnackInstance]);
 
   /**
