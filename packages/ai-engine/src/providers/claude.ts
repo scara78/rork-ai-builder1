@@ -9,7 +9,6 @@ import type {
 import { getLanguageFromPath } from '../tools';
 import { FULL_SYSTEM_PROMPT } from '../prompts';
 
-// Definirea uneltei pentru OpenRouter (format OpenAI)
 const WRITE_FILE_TOOL = {
   type: 'function',
   function: {
@@ -18,14 +17,8 @@ const WRITE_FILE_TOOL = {
     parameters: {
       type: 'object',
       properties: {
-        path: {
-          type: 'string',
-          description: 'File path relative to project root',
-        },
-        content: {
-          type: 'string',
-          description: 'Complete file content',
-        },
+        path: { type: 'string', description: 'File path relative to project root' },
+        content: { type: 'string', description: 'Complete file content' },
       },
       required: ['path', 'content'],
     },
@@ -34,13 +27,16 @@ const WRITE_FILE_TOOL = {
 
 export class OpenRouterProvider implements AIProvider {
   name = 'openrouter';
-  displayName = 'OpenRouter (Gemini)';
+  displayName = 'OpenRouter (Multi-Model)';
   
   private apiKey: string;
+  private defaultModel: string;
   private baseUrl = 'https://openrouter.ai/api/v1';
   
   constructor(apiKey: string) {
     this.apiKey = apiKey;
+    // Prioritizează modelul din ENV, altfel fallback pe Gemini 2.0 Flash
+    this.defaultModel = process.env.AI_MODEL || 'google/gemini-2.0-flash-001';
   }
   
   async generateCode(params: GenerateParams): Promise<GenerateResult> {
@@ -51,7 +47,8 @@ export class OpenRouterProvider implements AIProvider {
       conversationHistory = [],
       maxTokens = 16384,
       images = [],
-      model = 'google/gemini-2.0-flash-001', // Modelul default prin OpenRouter
+      // Permite suprascrierea modelului per apel dacă este trimis în params
+      model = this.defaultModel, 
     } = params;
     
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
@@ -62,7 +59,7 @@ export class OpenRouterProvider implements AIProvider {
     let inputTokens = 0;
     let outputTokens = 0;
     
-    for (let round = 0; round < 20; round++) {
+    for (let round = 0; round < 10; round++) {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -75,11 +72,12 @@ export class OpenRouterProvider implements AIProvider {
           messages: [{ role: 'system', content: fullSystemPrompt }, ...messages],
           tools: [WRITE_FILE_TOOL],
           max_tokens: maxTokens,
+          tool_choice: 'auto'
         }),
       });
 
       const data = await response.json();
-      if (data.error) throw new Error(data.error.message);
+      if (data.error) throw new Error(`OpenRouter Error: ${data.error.message}`);
 
       const message = data.choices[0].message;
       inputTokens += data.usage?.prompt_tokens || 0;
@@ -88,6 +86,8 @@ export class OpenRouterProvider implements AIProvider {
       if (message.content) fullText += message.content;
 
       if (message.tool_calls) {
+        messages.push(message); // Adaugă răspunsul asistentului cu tool_calls
+        
         for (const toolCall of message.tool_calls) {
           if (toolCall.function.name === 'write_file') {
             const input = JSON.parse(toolCall.function.arguments);
@@ -97,7 +97,6 @@ export class OpenRouterProvider implements AIProvider {
               language: getLanguageFromPath(input.path),
             });
 
-            messages.push(message);
             messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -122,7 +121,7 @@ export class OpenRouterProvider implements AIProvider {
       conversationHistory = [],
       maxTokens = 16384,
       images = [],
-      model = 'google/gemini-2.0-flash-001',
+      model = this.defaultModel,
     } = params;
     
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
@@ -159,9 +158,11 @@ export class OpenRouterProvider implements AIProvider {
         const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
         for (const line of lines) {
-          if (line.includes('[DONE]')) continue;
+          const cleanLine = line.replace(/^data: /, '').trim();
+          if (cleanLine === '[DONE]') continue;
+          
           try {
-            const json = JSON.parse(line.replace('data: ', ''));
+            const json = JSON.parse(cleanLine);
             const delta = json.choices[0].delta;
 
             if (delta.content) {
@@ -173,7 +174,7 @@ export class OpenRouterProvider implements AIProvider {
               toolArguments += delta.tool_calls[0].function.arguments || "";
             }
 
-            if (json.choices[0].finish_reason === 'tool_calls' || (done && isCollectingTool)) {
+            if (json.choices[0].finish_reason === 'tool_calls') {
               const input = JSON.parse(toolArguments);
               yield {
                 type: 'file',
@@ -183,13 +184,12 @@ export class OpenRouterProvider implements AIProvider {
                   language: getLanguageFromPath(input.path),
                 },
               };
+              isCollectingTool = false;
+              toolArguments = "";
             }
-          } catch (e) {
-            // Chunk incomplet sau eroare de parse
-          }
+          } catch (e) { /* Ignoră chunk-uri parțiale */ }
         }
       }
-      
       yield { type: 'done', usage: { inputTokens: 0, outputTokens: 0 } };
     } catch (error) {
       yield { type: 'error', error: error instanceof Error ? error.message : 'Unknown error' };
@@ -206,7 +206,6 @@ export class OpenRouterProvider implements AIProvider {
     }
 
     const userContent: any[] = [{ type: 'text', text: textContent }];
-    
     images.forEach(img => {
       userContent.push({
         type: 'image_url',
