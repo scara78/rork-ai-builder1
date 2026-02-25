@@ -244,17 +244,22 @@ const styles = StyleSheet.create({
    * Does NOT reset retryCountRef — that's the caller's responsibility.
    */
   const attemptOnline = useCallback(() => {
+    console.log('[useSnack] attemptOnline() entered');
     const snack = ensureSnackInstance();
+    console.log(`[useSnack] attemptOnline() snack=${snack ? 'exists' : 'NULL'}, webPreviewURL=${snack?.getState().webPreviewURL}, online=${snack?.getState().online}`);
 
     // Already connected — nothing to do
-    if (snack.getState().webPreviewURL) return;
+    if (snack.getState().webPreviewURL) {
+      console.log('[useSnack] attemptOnline() early return — already has webPreviewURL');
+      return;
+    }
 
     // Clear any pending timers from previous attempts
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
 
     // Force a clean reconnection: offline first, then online
-    try { snack.setOnline(false); } catch { /* ignore */ }
+    try { snack.setOnline(false); } catch (err) { console.error('[useSnack] setOnline(false) threw:', err); }
 
     // Small delay to ensure iframe's contentWindow is available + clean disconnect
     setTimeout(() => {
