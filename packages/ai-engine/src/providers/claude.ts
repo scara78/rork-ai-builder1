@@ -48,9 +48,7 @@ export class ClaudeProvider implements AIProvider {
       images = [],
     } = params;
     
-    // Cast la 'any' pentru a extrage modelul fără eroare de build
     const model = (params as any).model || this.defaultModel;
-    
     const fullSystemPrompt = systemPrompt || FULL_SYSTEM_PROMPT;
     let messages = this.buildMessages(prompt, conversationHistory, currentFiles, images);
     
@@ -85,7 +83,7 @@ export class ClaudeProvider implements AIProvider {
       if (message.content) fullText += message.content;
 
       if (message.tool_calls) {
-        messages.push(message);
+        messages.push(message as any);
         for (const toolCall of message.tool_calls) {
           if (toolCall.function.name === 'write_file') {
             const input = JSON.parse(toolCall.function.arguments);
@@ -100,7 +98,7 @@ export class ClaudeProvider implements AIProvider {
               tool_call_id: toolCall.id,
               name: 'write_file',
               content: 'File written successfully',
-            });
+            } as any);
           }
         }
       } else {
@@ -185,7 +183,7 @@ export class ClaudeProvider implements AIProvider {
               isCollectingTool = false;
               toolArguments = "";
             }
-          } catch (e) { /* Chunk fragmentat */ }
+          } catch (e) { }
         }
       }
       yield { type: 'done', usage: { inputTokens: 0, outputTokens: 0 } };
@@ -214,6 +212,6 @@ export class ClaudeProvider implements AIProvider {
     return [
       ...history.map(msg => ({ role: msg.role, content: msg.content })),
       { role: 'user', content: userContent }
-    ];
+    ] as any[];
   }
 }
