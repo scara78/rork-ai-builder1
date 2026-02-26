@@ -3,6 +3,24 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { AlertCircle, RefreshCw, Wand2, Loader2, Wifi, WifiOff } from 'lucide-react';
 
+/**
+ * Known non-fatal errors from the Snack web player runtime that we handle
+ * via auto-reload rather than showing to the user.
+ *
+ * - WakeLock NotAllowedError: expo-keep-awake@14 calls navigator.wakeLock.request()
+ *   without try/catch during init. Fails when iframe isn't visible yet.
+ * - VersionError (IndexedDB): Stale IndexedDB version from previous Snack session.
+ *   Clears on reload.
+ */
+function isKnownSnackRuntimeError(msg: string): boolean {
+  if (!msg) return false;
+  return (
+    msg.includes('WakeLock') ||
+    msg.includes('wakeLock') ||
+    (msg.includes('VersionError') && msg.includes('requested version'))
+  );
+}
+
 interface SnackPreviewProps {
   webPreviewRef: React.MutableRefObject<Window | null>;
   webPreviewURL: string | undefined;
@@ -33,6 +51,11 @@ export function SnackPreview({
   const autoFixSentRef = useRef<string | null>(null);
   const connectingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connectingTooLong, setConnectingTooLong] = useState(false);
+  // Track how many times we've auto-reloaded to recover from WakeLock crash
+  const wakeLockReloadCountRef = useRef(0);
+  const wakeLockReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether the Snack runtime has successfully rendered (sent CONNECTED/done/loading_complete message)
+  const runtimeReadyRef = useRef(false);
 
   // Wire up the webPreviewRef to iframe's contentWindow IMMEDIATELY on mount.
   useEffect(() => {
@@ -55,6 +78,8 @@ export function SnackPreview({
       setIsLoading(true);
       setRuntimeError(null);
       setConnectingTooLong(false);
+      runtimeReadyRef.current = false;
+      wakeLockReloadCountRef.current = 0;
       iframe.src = webPreviewURL;
 
       // Clear connecting timer
@@ -94,7 +119,10 @@ export function SnackPreview({
       // Snack web player runtime errors
       if (data.type === 'error' || data.type === 'unhandled_error') {
         const msg = data.message || data.error || 'Runtime error in preview';
-        setRuntimeError(msg);
+        // Ignore known non-fatal Snack runtime errors that we handle via auto-reload
+        if (!isKnownSnackRuntimeError(msg)) {
+          setRuntimeError(msg);
+        }
       }
 
       // Snack web player status reports with errors
@@ -112,18 +140,53 @@ export function SnackPreview({
       // Console errors from the web player (source: snack-runtime)
       if (data.type === 'console' && data.level === 'error') {
         const msg = Array.isArray(data.args) ? data.args.join(' ') : (data.message || 'Console error');
-        setRuntimeError(msg);
+        if (!isKnownSnackRuntimeError(msg)) {
+          setRuntimeError(msg);
+        }
       }
 
       // Clear errors on successful load
       if (data.type === 'loading_complete' || data.type === 'done' || data.type === 'CONNECTED') {
         setRuntimeError(null);
         setIsLoading(false);
+        runtimeReadyRef.current = true;
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
+
+  // Auto-reload iframe to recover from WakeLock crash in Snack runtime.
+  // Bug: expo-keep-awake@14's web impl calls navigator.wakeLock.request('screen')
+  // without try/catch during Snack runtime init. If the page isn't fully visible
+  // (e.g. iframe just mounted, tab in background), it throws NotAllowedError which
+  // can crash the runtime → white screen. Reloading once after a short delay fixes it
+  // because by then the iframe is visible and the WakeLock request succeeds.
+  useEffect(() => {
+    if (!webPreviewURL || !isOnline) return;
+
+    // After the SDK goes online and has a preview URL, wait for the Snack runtime
+    // to send a success message (CONNECTED/done/loading_complete). If it doesn't
+    // within 5s, the runtime likely crashed (WakeLock or IndexedDB VersionError).
+    // Auto-reload the iframe to recover.
+    if (wakeLockReloadTimerRef.current) clearTimeout(wakeLockReloadTimerRef.current);
+
+    wakeLockReloadTimerRef.current = setTimeout(() => {
+      const iframe = iframeRef.current;
+      // Only auto-reload if: runtime never signaled ready, have a URL, and haven't exceeded retry limit
+      if (iframe && !runtimeReadyRef.current && webPreviewURL && wakeLockReloadCountRef.current < 2) {
+        wakeLockReloadCountRef.current += 1;
+        console.log(`[SnackPreview] Auto-reloading iframe — runtime never signaled ready (attempt ${wakeLockReloadCountRef.current}/2). Likely WakeLock or IndexedDB crash.`);
+        setRuntimeError(null);
+        setIsLoading(true);
+        iframe.src = webPreviewURL;
+      }
+    }, 5000);
+
+    return () => {
+      if (wakeLockReloadTimerRef.current) clearTimeout(wakeLockReloadTimerRef.current);
+    };
+  }, [webPreviewURL, isOnline]);
 
   const dispatchFixWithAI = useCallback((errorMsg: string) => {
     const errorPrompt = `The Expo Snack preview has an error. Please analyze and fix the issue:\n\n\`\`\`\n${errorMsg}\n\`\`\`\n\nLook at the error carefully — if it mentions a package version issue, update package.json with the correct version. If it's a code error, fix the relevant source files. Make sure all imports are correct and all referenced files exist.`;
@@ -296,7 +359,7 @@ export function SnackPreview({
         ref={iframeRef}
         src="about:blank"
         title="Expo Snack Preview"
-        allow="geolocation; camera; microphone"
+        allow="geolocation; camera; microphone; screen-wake-lock"
         className="w-full h-full border-none"
         style={{ backgroundColor: '#0a0a0a' }}
         onLoad={() => {
