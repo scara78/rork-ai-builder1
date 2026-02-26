@@ -296,7 +296,7 @@ export function SnackPreview({
         ref={iframeRef}
         src="about:blank"
         title="Expo Snack Preview"
-        allow="geolocation; camera; microphone"
+        allow="geolocation; camera; microphone; screen-wake-lock"
         className="w-full h-full border-none"
         style={{ backgroundColor: '#0a0a0a' }}
         onLoad={() => {
